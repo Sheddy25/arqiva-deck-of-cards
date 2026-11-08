@@ -24,5 +24,14 @@ Requires Python 3.12 or newer.
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install -e .
+python -m pip install -e ".[dev]"
+```
+
+## Checks
+
+```bash
+ruff format --check .   # formatting
+ruff check .            # linting
+mypy src tests          # type checking
+pytest                  # tests (live API smoke tests excluded)
 ```

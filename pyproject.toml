@@ -10,5 +10,31 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = []
 
+[project.optional-dependencies]
+dev = [
+    "mypy>=2.4",
+    "pytest>=9.2",
+    "pytest-cov>=7.1",
+    "ruff>=0.17",
+]
+
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-m 'not smoke' --strict-markers"
+markers = [
+    "smoke: calls the real Deck of Cards API; run with 'pytest -m smoke'",
+]
