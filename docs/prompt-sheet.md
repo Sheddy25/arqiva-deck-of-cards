@@ -84,3 +84,46 @@ Verification
 I will check the plan against the challenge requirements and the
 architecture.
 ```
+
+## Prompt 0003 — Review code and suggest improvements
+
+```text
+Role
+Act as a senior Python software engineer reviewing a pull request.
+
+Context
+I have written src/deck_of_cards_sdk/models.py and
+tests/unit/sdk/test_models.py for step 3 of docs/implementation-plan.md: a
+Card model and a parse_card function for card objects returned by
+https://deckofcardsapi.com/. docs/requirements.md lists the requirements this
+step must meet (API-06, API-13, OBS-01, OBS-02, DEC-02), and
+docs/architecture.md describes the overall design.
+
+Task
+1. Review the code and tests against those requirements and the plan's
+   step 3, checking:
+   - correctness, including edge cases such as ten ("0"), lower-case codes,
+     Jokers, missing fields and wrong types;
+   - whether the tests cover every behaviour and would fail if the code
+     were wrong;
+   - readability, naming, type hints and docstrings;
+   - consistency with the architecture, and anything that belongs in a
+     later step instead.
+2. Report findings ordered by severity (bug, risk, improvement, nitpick). For
+   each, give the file and line, the problem, and a concrete suggestion.
+3. Point out anything that is already done well, so I know what to keep.
+
+Constraints
+- Suggest only; do not edit any file.
+- Do not invent API behaviour; cite the requirement ID or API documentation.
+- Avoid suggestions that add complexity without a clear benefit.
+
+
+Output
+A prioritised list of findings with suggested changes, then a one-line
+verdict on whether the step is ready to commit.
+
+Verification
+I will check each finding against the code, apply the ones I agree with,
+then re-run ruff, mypy and pytest before committing.
+```
