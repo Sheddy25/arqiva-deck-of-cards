@@ -2,9 +2,10 @@
 
 ## Status and goals
 
-- Status: proposed implementation baseline
-- Last reviewed: 2026-11-05
-- Code status: no application code has been written
+- Status: implementation baseline
+- Last reviewed: 2026-11-08
+- Code status: in progress; see [implementation-plan.md](implementation-plan.md)
+- Requirements: see [requirements.md](requirements.md)
 
 The design has two primary goals:
 
@@ -106,18 +107,13 @@ It does not decide when to create piles or mutate game state directly.
 ```text
 .
 ├── .github/
-│   ├── dependabot.yml
 │   └── workflows/
 │       └── ci.yml
 ├── docs/
-│   ├── ai-prompts/
-│   │   ├── README.md
-│   │   └── 0001-initial-project-design-prompt.md
-│   ├── ai-usage.md
 │   ├── architecture.md
-│   ├── decisions.md
-│   ├── delivery-plan.md
+│   ├── implementation-plan.md
 │   ├── interview-guide.md
+│   ├── prompt-sheet.md
 │   └── requirements.md
 ├── src/
 │   ├── card_game/
@@ -137,6 +133,8 @@ It does not decide when to create piles or mutate game state directly.
 │       ├── transport.py
 │       └── validation.py
 ├── tests/
+│   ├── fakes.py
+│   ├── test_imports.py
 │   ├── integration/
 │   │   ├── app/
 │   │   └── sdk/
@@ -144,18 +142,13 @@ It does not decide when to create piles or mutate game state directly.
 │   └── unit/
 │       ├── game/
 │       └── sdk/
-├── .editorconfig
 ├── .gitignore
-├── .markdownlint-cli2.yaml
-├── CONTRIBUTING.md
 ├── README.md
-├── pyproject.toml
-└── requirements-dev.lock
+└── pyproject.toml
 ```
 
-Only design and repository-governance files exist in the current phase. Source,
-tests, CI, and dependency files will be added with the implementation milestone
-that makes each one truthful and executable.
+Files are added by the implementation step that needs them, as listed in
+[implementation-plan.md](implementation-plan.md).
 
 ## Core game flow
 
@@ -253,9 +246,10 @@ Parsing will:
 - ignore additive unknown fields so a harmless API extension does not break the
   SDK.
 
-The public API's Joker response codes are not documented. Joker parsing will be
-implemented only from recorded upstream evidence; the SDK will not guess a
-format.
+The API reference does not document Joker card codes. The SDK accepts the
+format observed from the live API, `X1` and `X2` with value `JOKER`
+(OBS-02, DEC-02 in [requirements.md](requirements.md)), and the live smoke
+test re-checks it.
 
 ### Game models
 
@@ -391,9 +385,8 @@ routine CI and never supplies the only evidence for a rule.
 - No API key is required or supported by this client.
 - Local `.env` files, logs, JSONL files, source documents, and credentials are
   ignored by Git.
-- CI will run `detect-secrets-hook` over tracked content against a committed,
-  human-audited baseline and fail on new findings, as well as auditing
-  dependencies.
+- CI runs formatting, linting, type checking, tests and a package build on
+  every pull request (implementation plan step 14).
 - Raw API response bodies are not included in normal exception messages.
 - The exposed GitHub token from the initial conversation must be revoked and is
   not used or preserved in project files.
@@ -407,5 +400,5 @@ routine CI and never supplies the only evidence for a rule.
 - Pile card order from the list endpoint is not treated as contractual.
 - No metrics or distributed traces are added; structured transaction logs are
   proportionate for a local CLI.
-- Joker payload parsing awaits evidence because the public page omits its card
-  code schema.
+- Joker card codes come from observed behaviour (OBS-02), not the API
+  reference, so a future API change could alter them.
