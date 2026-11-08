@@ -45,3 +45,42 @@ Verification
 I will read the full diff, check the Markdown renders correctly on GitHub, and
 confirm every requirement above is still covered before committing.
 ```
+
+## Prompt 0002 — Write the implementation plan
+
+
+
+
+```text
+Role
+Act as a senior Python software engineer and technical mentor.
+
+Context
+docs/architecture.md defines the design: an SDK package (exceptions,
+validation, models, transport, client) and a game package (rules, models,
+ports, engine, events, cli). Step 1, the empty project structure, is done.
+I will build the rest myself.
+
+Task
+Write docs/implementation-plan.md: a step-by-step plan from tooling through
+to CI and documentation. For each step, list:
+- the files to create or change;
+- what each file should contain (classes, functions and responsibilities);
+- the tests to write;
+- what "done" means;
+- a suggested Conventional Commit message.
+
+Constraints
+- Use the module names from docs/architecture.md.
+- Size each step to one focused session and one commit.
+- Order steps so each builds only on earlier ones.
+- Keep the King rule in a single place and never retry state-changing calls.
+- Plan only; write no code.
+
+Output
+The plan file and a short summary of the steps.
+
+Verification
+I will check the plan against the challenge requirements and the
+architecture.
+```
