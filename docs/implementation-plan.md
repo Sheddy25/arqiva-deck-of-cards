@@ -1,14 +1,17 @@
 # Implementation plan
 
 A step-by-step plan for building the SDK and game. Each step is a small,
-reviewable unit of work that ends in one commit. Module names follow
-[architecture.md](architecture.md).
+reviewable unit of work. Module names follow
+[architecture.md](architecture.md), and the requirement IDs listed for each
+step are defined in [requirements.md](requirements.md).
 
 ## How to work through each step
 
-1. Read the step and the files it touches.
-2. Write the tests first where practical, then the code.
-3. Run the checks (available from step 2):
+1. Read the step, its requirements and the files it touches.
+2. Create a feature branch from the latest `main`, for example
+   `feat/sdk-card-model` (DEC-05).
+3. Write the tests first where practical, then the code.
+4. Run the checks:
 
    ```bash
    ruff format .
@@ -17,9 +20,11 @@ reviewable unit of work that ends in one commit. Module names follow
    pytest
    ```
 
-4. Review the full diff with `git diff`.
-5. Add any AI prompt you used to `docs/prompt-sheet.md`.
-6. Stage the files by name and commit with the suggested message.
+5. Review the full diff with `git diff`.
+6. Add any AI prompt you used to `docs/prompt-sheet.md` (CH-02, CH-12).
+7. Stage the files by name and commit with the suggested message.
+8. Push the branch, open a pull request, and merge it into `main` with a merge
+   commit. Keep the branch.
 
 ## Final file layout
 
@@ -54,7 +59,9 @@ tests/
 
 ---
 
-## Step 1 — Project structure ✅ (done, not yet committed)
+## Step 1 — Project structure ✅
+
+**Requirements:** CH-01, CH-14, DEC-01
 
 **Files:** `.gitignore`, `README.md`, `pyproject.toml`,
 `src/deck_of_cards_sdk/__init__.py`, `src/card_game/__init__.py`
@@ -63,7 +70,9 @@ tests/
 
 ---
 
-## Step 2 — Quality tooling
+## Step 2 — Quality tooling ✅
+
+**Requirements:** CH-01, CH-11
 
 **`pyproject.toml`** — add:
 
@@ -87,27 +96,40 @@ is independent from day one.
 
 ## Step 3 — Card model
 
+**Requirements:** CH-01, API-06, API-13, OBS-01, OBS-02, DEC-02
+
 **`src/deck_of_cards_sdk/models.py`**
 
 - `Card`: a frozen dataclass with `code`, `value`, `suit` and `image`.
-- Properties: `rank` (first character of the code) and `is_king`
-  (`rank == "K"`).
+- Properties: `rank` (first character of the code), `is_king`
+  (`rank == "K"`) and `is_joker`.
 - `parse_card(data: Mapping[str, object]) -> Card`:
-  - requires `code`, `value` and `suit` to be strings;
-  - upper-cases the code;
-  - checks the code is two characters and its suit letter matches `suit`;
-  - accepts `0` as the code for ten (value `"10"`);
+  - requires `code`, `value`, `suit` and `image` to be strings;
+  - upper-cases the code (API-06);
+  - checks a standard code's rank and suit letters, and that `value` and
+    `suit` match them, with `0` as ten (API-06, OBS-01);
+  - accepts the Jokers `X1` (`BLACK`) and `X2` (`RED`) with value `JOKER`
+    (OBS-02, DEC-02);
+  - ignores extra fields such as `images`;
   - raises `ValueError` for now (replaced by the SDK error in step 4).
 
-**`tests/unit/sdk/test_models.py`** — valid card; ten (`0H`); King (`KS`,
-`is_king` is true); lower-case code; missing field; wrong type; suit
-mismatch.
+**`tests/unit/sdk/test_models.py`** — valid card; ten (`0H`); Ace, Jack,
+Queen and King values; Jokers; lower-case code; missing field; wrong type;
+unknown code; suit or value mismatch; extra fields ignored; card is
+immutable.
+
+**`tests/__init__.py`, `tests/unit/__init__.py`, `tests/unit/sdk/__init__.py`**
+— empty files that make the test folders packages, so test modules with the
+same name in different folders (such as `test_models.py` for the SDK and the
+game) do not clash in pytest or mypy.
 
 **Commit:** `feat(sdk): add card model and parsing`
 
 ---
 
 ## Step 4 — Exceptions and validation
+
+**Requirements:** CH-01, API-06, API-09, OBS-03
 
 **`src/deck_of_cards_sdk/exceptions.py`** — a small hierarchy:
 
@@ -145,6 +167,8 @@ number.
 
 ## Step 5 — HTTP transport
 
+**Requirements:** CH-01, API-13, INT-08
+
 **`pyproject.toml`** — add `httpx` to `dependencies`.
 
 **`src/deck_of_cards_sdk/transport.py`**
@@ -175,6 +199,8 @@ for: success, 404, 500, timeout, connection error, invalid JSON, a list root,
 ---
 
 ## Step 6 — Deck operations
+
+**Requirements:** CH-01, API-01 to API-05, OBS-03, DEC-02
 
 **`src/deck_of_cards_sdk/models.py`** — add:
 
@@ -208,6 +234,8 @@ and that invalid input makes no request.
 
 ## Step 7 — Pile operations
 
+**Requirements:** CH-01, API-07 to API-11
+
 **`src/deck_of_cards_sdk/models.py`** — add:
 
 - `PileResult(deck_id, remaining, piles: dict[str, int])`;
@@ -233,6 +261,8 @@ and argument errors.
 
 ## Step 8 — Live API smoke test
 
+**Requirements:** CH-01, OBS-01 to OBS-03
+
 **`tests/smoke/test_live_api.py`**
 
 - marked `@pytest.mark.smoke`;
@@ -247,6 +277,8 @@ Run it by hand with `DECK_API_SMOKE=1 pytest -m smoke` and note the result.
 ---
 
 ## Step 9 — Rule and pile model
+
+**Requirements:** CH-07, CH-08, CH-10, CH-13, INT-04
 
 **`src/card_game/rules.py`**
 
@@ -273,6 +305,8 @@ bottom, and counts.
 ---
 
 ## Step 10 — Game engine
+
+**Requirements:** CH-03 to CH-08, INT-01 to INT-03, INT-07
 
 **`src/card_game/ports.py`** — a `CardClient` protocol listing only what the
 engine needs: `create_deck`, `draw_cards` and `add_to_pile`.
@@ -304,6 +338,8 @@ touching other code.
 
 ## Step 11 — Failure handling
 
+**Requirements:** CH-09, INT-08
+
 **`src/card_game/engine.py`** — add:
 
 - `GameInterruptedError` with `operation`, `outcome`, an optional `card`, an
@@ -323,6 +359,8 @@ these cases.
 ---
 
 ## Step 12 — Transaction logging
+
+**Requirements:** CH-09, INT-06
 
 **`src/card_game/events.py`**
 
@@ -346,6 +384,8 @@ JSON.
 ---
 
 ## Step 13 — Command-line app
+
+**Requirements:** CH-03, CH-06, CH-10, CH-13, INT-05, API-12
 
 **`src/card_game/cli.py`**
 
@@ -372,6 +412,8 @@ with a non-zero exit.
 
 ## Step 14 — Continuous integration
 
+**Requirements:** CH-11, CH-14, DEC-05
+
 **`.github/workflows/ci.yml`**
 
 - runs on pushes and pull requests to `main`;
@@ -387,6 +429,8 @@ with a non-zero exit.
 
 ## Step 15 — Documentation
 
+**Requirements:** CH-02, CH-12, CH-13, CH-14
+
 - **`README.md`**: installation, running the game, using the SDK on its own
   (a short code example), running the tests, CI, real example output,
   error handling, and limitations.
@@ -394,6 +438,8 @@ with a non-zero exit.
   change the rule, which tests to update, and two practice changes (an Ace
   rule; King or Queen).
 - **`docs/prompt-sheet.md`**: check that every prompt used is recorded.
+- **`docs/requirements.md`**: check every requirement is traced to the
+  final code and tests.
 
 **Commit:** `docs: add usage and interview guide`
 
@@ -401,7 +447,7 @@ with a non-zero exit.
 
 ## Before the interview
 
-- Practise one rule change on a temporary branch, then delete it.
+- Practise one rule change on its own branch, without merging it (CH-13).
 - Run `DECK_API_SMOKE=1 pytest -m smoke` and one live game.
 - Revoke the access tokens, then make the repository public or invite the
-  reviewers.
+  reviewers, and send the link (CH-14, CH-15).
