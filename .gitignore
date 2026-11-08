@@ -1,0 +1,27 @@
+# Supplied challenge material; kept locally only.
+*.docx
+
+# Python environments and build output.
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Tool caches and coverage.
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local configuration, secrets and runtime logs.
+.env
+*.log
+*.jsonl
+
+# Editor and OS files.
+.DS_Store
+.idea/
+.vscode/
