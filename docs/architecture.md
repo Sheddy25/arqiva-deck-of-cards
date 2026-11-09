@@ -60,7 +60,8 @@ Planned public operations:
 - create ordered or shuffled decks;
 - configure deck count;
 - create partial decks;
-- request the documented Joker option;
+- request the documented Joker option (Joker cards themselves are not
+  parsed; see below);
 - draw one or more cards;
 - reshuffle all cards or only remaining cards;
 - add cards to a pile;
@@ -246,10 +247,11 @@ Parsing will:
 - ignore additive unknown fields so a harmless API extension does not break the
   SDK.
 
-The API reference does not document Joker card codes. The SDK accepts the
-format observed from the live API, `X1` and `X2` with value `JOKER`
-(OBS-02, DEC-02 in [requirements.md](requirements.md)), and the live smoke
-test re-checks it.
+The API reference documents only two-character card codes and does not
+document Joker codes. To follow the brief, the SDK accepts only the documented
+codes; a Joker in a response raises a clear format error rather than being
+guessed (DEC-02 in [requirements.md](requirements.md)). The game uses a
+standard shuffled deck, which has no Jokers.
 
 ### Game models
 
@@ -400,5 +402,6 @@ routine CI and never supplies the only evidence for a rule.
 - Pile card order from the list endpoint is not treated as contractual.
 - No metrics or distributed traces are added; structured transaction logs are
   proportionate for a local CLI.
-- Joker card codes come from observed behaviour (OBS-02), not the API
-  reference, so a future API change could alter them.
+- Joker cards cannot be parsed, because their codes are not documented
+  (DEC-02). The `jokers_enabled` option can create such a deck, but drawing a
+  Joker from it raises an error.

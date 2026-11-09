@@ -127,3 +127,47 @@ Verification
 I will check each finding against the code, apply the ones I agree with,
 then re-run ruff, mypy and pytest before committing.
 ```
+
+## Prompt 0004 — Remove undocumented Joker support
+
+```text
+Role
+Act as a senior Python software engineer keeping an SDK aligned with its
+specification.
+
+Context
+The challenge brief and the supplied API reference
+(Deck_of_Cards_API_Developer_Reference.docx) only document two-character card
+codes: a rank (A, 2-9, 0, J, Q, K) followed by a suit (S, D, C, H). The
+reference mentions Jokers only as the jokers_enabled=true option on a new
+unshuffled deck, and never documents their card codes. The merged step 3 code
+in src/deck_of_cards_sdk/models.py accepts the Joker codes X1 and X2, based
+only on live API observation (OBS-02, DEC-02 in docs/requirements.md).
+
+Task
+1. Remove the Joker parsing and the is_joker property from models.py, so
+   parse_card accepts only the documented card codes.
+2. Update tests/unit/sdk/test_models.py so X1 and X2 are rejected as unknown
+   card codes.
+3. Rewrite DEC-02 in docs/requirements.md: the SDK supports only documented
+   codes, still offers the documented jokers_enabled option, and raises a
+   clear error if a Joker is parsed. Keep OBS-02 as a record of what the live
+   API returned.
+4. Update every Joker reference in docs/implementation-plan.md and
+   docs/architecture.md to match.
+
+Constraints
+- Follow the brief exactly; do not keep behaviour that relies on
+  undocumented API responses.
+- Do not remove the documented jokers_enabled option.
+- Make the change on its own branch, before step 4 starts.
+- Leave earlier prompt sheet entries unchanged.
+
+Output
+The code, test and documentation changes as a reviewable diff, and a short
+summary of each change.
+
+Verification
+I will confirm no Joker handling remains in the code, check the
+documentation against both briefs, and re-run ruff, mypy and pytest.
+```

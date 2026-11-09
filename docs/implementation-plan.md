@@ -96,27 +96,26 @@ is independent from day one.
 
 ## Step 3 — Card model
 
-**Requirements:** CH-01, API-06, API-13, OBS-01, OBS-02, DEC-02
+**Requirements:** CH-01, API-06, API-13, OBS-01, DEC-02
 
 **`src/deck_of_cards_sdk/models.py`**
 
 - `Card`: a frozen dataclass with `code`, `value`, `suit` and `image`.
-- Properties: `rank` (first character of the code), `is_king`
-  (`rank == "K"`) and `is_joker`.
+- Properties: `rank` (first character of the code) and `is_king`
+  (`rank == "K"`).
 - `parse_card(data: Mapping[str, object]) -> Card`:
   - requires `code`, `value`, `suit` and `image` to be strings;
   - upper-cases the code (API-06);
-  - checks a standard code's rank and suit letters, and that `value` and
-    `suit` match them, with `0` as ten (API-06, OBS-01);
-  - accepts the Jokers `X1` (`BLACK`) and `X2` (`RED`) with value `JOKER`
-    (OBS-02, DEC-02);
+  - accepts only the documented two-character codes and checks that
+    `value` and `suit` match them, with `0` as ten (API-06, OBS-01);
+  - rejects the undocumented Joker codes (DEC-02);
   - ignores extra fields such as `images`;
   - raises `ValueError` for now (replaced by the SDK error in step 4).
 
 **`tests/unit/sdk/test_models.py`** — valid card; ten (`0H`); Ace, Jack,
-Queen and King values; Jokers; lower-case code; missing field; wrong type;
-unknown code; suit or value mismatch; extra fields ignored; card is
-immutable.
+Queen and King values; lower-case code; missing field; wrong type; unknown
+code, including Jokers; suit or value mismatch; extra fields ignored; card
+is immutable.
 
 **`tests/__init__.py`, `tests/unit/__init__.py`, `tests/unit/sdk/__init__.py`**
 — empty files that make the test folders packages, so test modules with the
@@ -129,7 +128,7 @@ game) do not clash in pytest or mypy.
 
 ## Step 4 — Exceptions and validation
 
-**Requirements:** CH-01, API-06, API-09, OBS-03
+**Requirements:** CH-01, API-06, API-09, OBS-03, DEC-02
 
 **`src/deck_of_cards_sdk/exceptions.py`** — a small hierarchy:
 
@@ -215,7 +214,8 @@ for: success, 404, 500, timeout, connection error, invalid JSON, a list root,
   support;
 - `create_deck(*, shuffled=True, deck_count=1, cards=None,
   jokers_enabled=False) -> Deck`, which uses `deck/new/shuffle/` or
-  `deck/new/`;
+  `deck/new/`; drawing a Joker from such a deck raises a format error
+  (DEC-02);
 - `draw_cards(deck_id, count=1) -> DrawResult`;
 - `shuffle_deck(deck_id, *, remaining_only=False) -> Deck`.
 
