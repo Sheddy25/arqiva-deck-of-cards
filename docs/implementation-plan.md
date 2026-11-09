@@ -104,23 +104,46 @@ is independent from day one.
 - Properties: `rank` (first character of the code) and `is_king`
   (`rank == "K"`).
 - `parse_card(data: Mapping[str, object]) -> Card`:
-  - requires `code`, `value`, `suit` and `image` to be strings;
-  - upper-cases the code (API-06);
-  - accepts only the documented two-character codes and checks that
-    `value` and `suit` match them, with `0` as ten (API-06, OBS-01);
-  - rejects the undocumented Joker codes (DEC-02);
-  - ignores extra fields such as `images`;
+  - requires `code`, `value` and `suit` to be strings;
+  - upper-cases the code;
+  - checks the code is two characters and its suit letter matches `suit`;
+  - accepts `0` as the code for ten (value `"10"`);
   - raises `ValueError` for now (replaced by the SDK error in step 4).
 
-**`tests/unit/sdk/test_models.py`** — valid card; ten (`0H`); Ace, Jack,
-Queen and King values; lower-case code; missing field; wrong type; unknown
-code, including Jokers; suit or value mismatch; extra fields ignored; card
-is immutable.
+**`tests/unit/sdk/test_models.py`** — valid card; ten (`0H`); King (`KS`,
+`is_king` is true); lower-case code; missing field; wrong type; suit
+mismatch.
 
-**`tests/__init__.py`, `tests/unit/__init__.py`, `tests/unit/sdk/__init__.py`**
-— empty files that make the test folders packages, so test modules with the
-same name in different folders (such as `test_models.py` for the SDK and the
-game) do not clash in pytest or mypy.
+> **Change (2026-11-08):** `parse_card` also requires `image` to be a
+> string, checks the code's rank against `value` as well as its suit against
+> `suit`, rejects unknown codes, and ignores extra fields such as `images`.
+> The tests also cover Ace, Jack and Queen, unknown codes, a value mismatch,
+> extra fields and immutability.
+>
+> **Reason:** every card in the API reference has an `image` (API-13), and
+> checking only the suit would accept a card whose value contradicts its
+> code (API-06, OBS-01).
+
+> **Change (2026-11-08):** added empty `tests/__init__.py`,
+> `tests/unit/__init__.py` and `tests/unit/sdk/__init__.py` files.
+>
+> **Reason:** they make the test folders packages, so test modules with the
+> same name in different folders (such as `test_models.py` for the SDK and
+> the game) do not clash in pytest or mypy.
+
+> **Change (2026-11-08):** `parse_card` accepted the Joker codes `X1`
+> (`BLACK`) and `X2` (`RED`) with value `JOKER`, and `Card` gained an
+> `is_joker` property.
+>
+> **Reason:** the live API returns these codes for a deck created with
+> `jokers_enabled=true` (OBS-02), so the documented Joker option would work.
+
+> **Change (2026-11-09):** Joker support was removed. `X1` and `X2` are
+> rejected as unknown card codes, and `is_joker` no longer exists (DEC-02).
+>
+> **Reason:** to follow the brief. The API reference documents only
+> two-character rank-and-suit codes (API-06) and never documents Joker codes,
+> so the SDK does not rely on undocumented behaviour.
 
 **Commit:** `feat(sdk): add card model and parsing`
 
@@ -159,6 +182,29 @@ Update `parse_card` to raise `ResponseFormatError`.
 **Tests:** `tests/unit/sdk/test_validation.py` with valid and invalid cases
 for every function, including `True` passed as a count and `"4x"` as a
 number.
+
+> **Change (2026-11-09):** the card-code tables
+> (`RANK_VALUES`, `SUIT_NAMES`) and a new `is_card_code(code)` function were
+> moved from `models.py` into `validation.py`.
+>
+> **Reason:** `parse_card` and `validate_card_codes` need the same list of
+> valid codes, so they share one copy. The copy cannot stay in `models.py`,
+> because step 6 makes `models.py` import `validation.py` for
+> `parse_int_field`, and two modules importing each other would fail.
+
+> **Change (2026-11-09):** added
+> `tests/unit/sdk/test_exceptions.py`, which checks that every error is a
+> `DeckOfCardsError` and that `HttpStatusError` keeps its `status_code`.
+>
+> **Reason:** the hierarchy is part of the SDK's public contract, and a few
+> small tests stop it changing by accident.
+
+> **Change (2026-11-09):** `ApiError` stores the API's
+> message as the normal exception message (`str(error)`), not as a separate
+> `message` attribute.
+>
+> **Reason:** a separate attribute would duplicate what every Python
+> exception already holds.
 
 **Commit:** `feat(sdk): add exceptions and input validation`
 
@@ -214,12 +260,17 @@ for: success, 404, 500, timeout, connection error, invalid JSON, a list root,
   support;
 - `create_deck(*, shuffled=True, deck_count=1, cards=None,
   jokers_enabled=False) -> Deck`, which uses `deck/new/shuffle/` or
-  `deck/new/`; drawing a Joker from such a deck raises a format error
-  (DEC-02);
+  `deck/new/`;
 - `draw_cards(deck_id, count=1) -> DrawResult`;
 - `shuffle_deck(deck_id, *, remaining_only=False) -> Deck`.
 
 Validate every argument before calling the transport.
+
+> **Change (2026-11-09):** `jokers_enabled` is kept, but drawing a Joker
+> from a deck created with it raises `ResponseFormatError` (DEC-02).
+>
+> **Reason:** the option is documented (API-04), but the Joker card codes are
+> not, so the SDK cannot parse them (see step 3).
 
 **`src/deck_of_cards_sdk/__init__.py`** — export the client, the models and
 the exceptions.

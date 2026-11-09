@@ -4,6 +4,7 @@ import dataclasses
 
 import pytest
 
+from deck_of_cards_sdk.exceptions import ResponseFormatError
 from deck_of_cards_sdk.models import Card, parse_card
 
 
@@ -58,7 +59,7 @@ def test_every_king_is_a_king(code: str) -> None:
 
 @pytest.mark.parametrize(("code", "suit"), [("X1", "BLACK"), ("X2", "RED")])
 def test_undocumented_joker_codes_are_rejected(code: str, suit: str) -> None:
-    with pytest.raises(ValueError, match="unknown card code"):
+    with pytest.raises(ResponseFormatError, match="unknown card code"):
         parse_card(card_data(code, "JOKER", suit))
 
 
@@ -80,7 +81,7 @@ def test_missing_field_is_rejected(field: str) -> None:
     data = card_data("5S", "5", "SPADES")
     del data[field]
 
-    with pytest.raises(ValueError, match="missing"):
+    with pytest.raises(ResponseFormatError, match="missing"):
         parse_card(data)
 
 
@@ -90,13 +91,13 @@ def test_non_string_field_is_rejected(field: str, bad_value: object) -> None:
     data = card_data("5S", "5", "SPADES")
     data[field] = bad_value
 
-    with pytest.raises(ValueError, match="must be a string"):
+    with pytest.raises(ResponseFormatError, match="must be a string"):
         parse_card(data)
 
 
 @pytest.mark.parametrize("code", ["", "K", "1S", "KX", "KSS", "X3", "XX"])
 def test_unknown_code_is_rejected(code: str) -> None:
-    with pytest.raises(ValueError, match="unknown card code"):
+    with pytest.raises(ResponseFormatError, match="unknown card code"):
         parse_card(card_data(code, "KING", "SPADES"))
 
 
@@ -111,7 +112,7 @@ def test_unknown_code_is_rejected(code: str) -> None:
 def test_value_or_suit_not_matching_code_is_rejected(
     code: str, value: str, suit: str
 ) -> None:
-    with pytest.raises(ValueError, match="expected"):
+    with pytest.raises(ResponseFormatError, match="expected"):
         parse_card(card_data(code, value, suit))
 
 
