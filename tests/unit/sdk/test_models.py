@@ -1,11 +1,19 @@
-"""Tests for Card parsing (API-06, API-13, OBS-01, OBS-02, DEC-02)."""
+"""Tests for card, deck and draw parsing (API-06, API-13, OBS-01 to OBS-03,
+DEC-02)."""
 
 import dataclasses
 
 import pytest
 
 from deck_of_cards_sdk.exceptions import ResponseFormatError
-from deck_of_cards_sdk.models import Card, parse_card
+from deck_of_cards_sdk.models import (
+    Card,
+    Deck,
+    DrawResult,
+    parse_card,
+    parse_deck,
+    parse_draw,
+)
 
 
 def card_data(code: str, value: str, suit: str) -> dict[str, object]:
@@ -126,3 +134,78 @@ def test_card_is_immutable() -> None:
 
     with pytest.raises(dataclasses.FrozenInstanceError):
         card.code = "6S"  # type: ignore[misc]
+
+
+def deck_data(**overrides: object) -> dict[str, object]:
+    data: dict[str, object] = {
+        "success": True,
+        "deck_id": "abc123",
+        "shuffled": True,
+        "remaining": 52,
+    }
+    data.update(overrides)
+    return data
+
+
+def draw_data(**overrides: object) -> dict[str, object]:
+    data: dict[str, object] = {
+        "success": True,
+        "deck_id": "abc123",
+        "cards": [card_data("6H", "6", "HEARTS")],
+        "remaining": 51,
+    }
+    data.update(overrides)
+    return data
+
+
+@pytest.mark.parametrize(("remaining", "expected"), [(52, 52), ("42", 42), (0, 0)])
+def test_parses_a_deck(remaining: object, expected: int) -> None:
+    deck = parse_deck(deck_data(remaining=remaining))
+
+    assert deck == Deck(deck_id="abc123", shuffled=True, remaining=expected)
+
+
+@pytest.mark.parametrize(
+    ("overrides", "message"),
+    [
+        ({"deck_id": None}, "'deck_id'"),
+        ({"deck_id": 123}, "'deck_id'"),
+        ({"shuffled": None}, "'shuffled'"),
+        ({"shuffled": "true"}, "'shuffled'"),
+        ({"remaining": None}, "'remaining'"),
+        ({"remaining": -1}, "'remaining'"),
+    ],
+)
+def test_invalid_deck_is_rejected(overrides: dict[str, object], message: str) -> None:
+    with pytest.raises(ResponseFormatError, match=message):
+        parse_deck(deck_data(**overrides))
+
+
+def test_parses_a_draw() -> None:
+    result = parse_draw(draw_data())
+
+    assert result == DrawResult(
+        deck_id="abc123",
+        cards=(parse_card(card_data("6H", "6", "HEARTS")),),
+        remaining=51,
+    )
+
+
+def test_parses_a_draw_with_no_cards() -> None:
+    assert parse_draw(draw_data(cards=[], remaining=0)).cards == ()
+
+
+@pytest.mark.parametrize(
+    ("overrides", "message"),
+    [
+        ({"deck_id": None}, "'deck_id'"),
+        ({"cards": None}, "'cards'"),
+        ({"cards": {"code": "6H"}}, "'cards'"),
+        ({"cards": ["6H"]}, "JSON object"),
+        ({"cards": [card_data("6H", "7", "HEARTS")]}, "expected"),
+        ({"remaining": "4x"}, "'remaining'"),
+    ],
+)
+def test_invalid_draw_is_rejected(overrides: dict[str, object], message: str) -> None:
+    with pytest.raises(ResponseFormatError, match=message):
+        parse_draw(draw_data(**overrides))

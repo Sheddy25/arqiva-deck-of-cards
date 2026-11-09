@@ -80,7 +80,7 @@ say.
 | INT-03 | Cards drawn before the first King go into the first pile, `discard_1`. Each King starts the next pile (`discard_2`, ...). If the first card is a King, it starts `discard_1`; no empty pile is created. | CH-06, CH-07, CH-08 |
 | INT-04 | The bottom card of a pile is the first card placed in it; the top card is the most recently placed. | CH-08, CH-10 |
 | INT-05 | The API has no face-up or face-down property, so "face down" is shown in the output: cards are displayed as a card back during play, and only the final report reveals the top and bottom cards. | CH-06, CH-10, API-12 |
-| INT-06 | A transaction is each game action: creating the deck, each draw, starting a pile, each pile add, any failure, and game completion. | CH-09 |
+| INT-06 | A transaction is each game action: creating the deck, each draw, starting a pile, each pile add, binning a Joker (DEC-02), any failure, and game completion. | CH-09 |
 | INT-07 | Top and bottom cards are tracked from the order in which pile adds were confirmed, because the reference does not define the order of the pile list response. | CH-10, API-09 |
 | INT-08 | If an API call fails, the game stops and reports what happened. Calls that change state are not retried automatically, because a retry could draw or move a card twice. | CH-09 |
 
@@ -123,7 +123,7 @@ Planned implementation and tests follow [implementation-plan.md](implementation-
 | CH-09, INT-06 | 12 | `card_game/events.py` | `tests/unit/game/test_events.py` |
 | CH-10, INT-04, INT-07 | 9, 13 | `card_game/models.py`, `cli.py` | `tests/unit/game/test_models.py`, `test_cli.py` |
 | INT-08 | 5, 11 | `transport.py`, `engine.py` | `test_transport.py`, `test_engine.py` |
-| API-13, OBS-04 | 5 | `deck_of_cards_sdk/transport.py` | `tests/integration/sdk/test_transport.py` |
+| API-13, OBS-04 | 5, 11 | `deck_of_cards_sdk/transport.py`, `card_game/engine.py` | `tests/integration/sdk/test_transport.py`, `test_engine.py` |
 | CH-13 | 9, 15 | `rules.py`, `docs/interview-guide.md` | Ace-rule test in `test_engine.py` |
 | CH-02, CH-12, DEC-04 | All | `docs/prompt-sheet.md` | Reviewed before each commit |
 | CH-11, CH-14, CH-15, DEC-03, DEC-05 | All, 14 | Repository, `.github/workflows/ci.yml` | CI on every pull request |
