@@ -69,6 +69,7 @@ say.
 | OBS-01 | Card `value` names are `ACE`, `2` to `10`, `JACK`, `QUEEN` and `KING`; code rank `0` has value `10`. Suit names are `SPADES`, `DIAMONDS`, `CLUBS` and `HEARTS`. |
 | OBS-02 | With `jokers_enabled=true`, the Jokers are `X1` (value `JOKER`, suit `BLACK`) and `X2` (value `JOKER`, suit `RED`). |
 | OBS-03 | The draw response returns `remaining` as a JSON number, while the pile list example (API-09) shows strings, so both forms must be accepted. |
+| OBS-04 | Recorded 2026-11-09. An unknown deck ID returns HTTP 404 with `{"success": false, "error": "Deck ID does not exist."}`. Drawing more cards than remain returns HTTP 200 with `"success": false` and an `error` message, but still draws the cards that were left. An invalid parameter such as `count=abc` returns an HTML HTTP 500 page. |
 
 ## Interpretations (`INT`)
 
@@ -122,6 +123,7 @@ Planned implementation and tests follow [implementation-plan.md](implementation-
 | CH-09, INT-06 | 12 | `card_game/events.py` | `tests/unit/game/test_events.py` |
 | CH-10, INT-04, INT-07 | 9, 13 | `card_game/models.py`, `cli.py` | `tests/unit/game/test_models.py`, `test_cli.py` |
 | INT-08 | 5, 11 | `transport.py`, `engine.py` | `test_transport.py`, `test_engine.py` |
+| API-13, OBS-04 | 5 | `deck_of_cards_sdk/transport.py` | `tests/integration/sdk/test_transport.py` |
 | CH-13 | 9, 15 | `rules.py`, `docs/interview-guide.md` | Ace-rule test in `test_engine.py` |
 | CH-02, CH-12, DEC-04 | All | `docs/prompt-sheet.md` | Reviewed before each commit |
 | CH-11, CH-14, CH-15, DEC-03, DEC-05 | All, 14 | Repository, `.github/workflows/ci.yml` | CI on every pull request |
