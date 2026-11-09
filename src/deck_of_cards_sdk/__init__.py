@@ -11,7 +11,14 @@ from deck_of_cards_sdk.exceptions import (
     ResponseFormatError,
     TransportError,
 )
-from deck_of_cards_sdk.models import Card, Deck, DrawResult
+from deck_of_cards_sdk.models import (
+    Card,
+    Deck,
+    DrawResult,
+    PileDrawResult,
+    PileListing,
+    PileResult,
+)
 from deck_of_cards_sdk.transport import HttpTransport
 
 __all__ = [
@@ -25,6 +32,9 @@ __all__ = [
     "HttpStatusError",
     "HttpTransport",
     "InvalidArgumentError",
+    "PileDrawResult",
+    "PileListing",
+    "PileResult",
     "RequestTimeoutError",
     "ResponseFormatError",
     "TransportError",

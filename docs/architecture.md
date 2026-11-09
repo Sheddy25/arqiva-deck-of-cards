@@ -44,7 +44,7 @@ nothing about Kings, discard piles, or game completion.
 
 | Module | Responsibility |
 | --- | --- |
-| `client.py` | Public `DeckOfCardsClient` operations and endpoint-specific parameter construction |
+| `client.py` | Public `DeckOfCardsClient` operations, endpoint-specific parameter construction, and the record of drawn cards that guards pile adds (DEC-06) |
 | `models.py` | Immutable typed cards, deck state, pile state, and parsed operation results |
 | `transport.py` | One place for HTTPS requests, timeout handling, HTTP status handling and JSON decoding, with no automatic retries |
 | `validation.py` | Deck ID, pile name, count, deck count, card code, and option validation |
@@ -55,6 +55,14 @@ The client is synchronous because the game performs one operation at a time and
 has no concurrent workload. An asynchronous interface would increase concepts
 and testing cost without improving this use case.
 
+The API accepts adding a card that was never drawn, and silently moves a card
+that is already in another pile (OBS-05). The client therefore records the
+cards it has drawn from each deck and the pile each one is in, and
+`add_to_pile` rejects any other card with `InvalidArgumentError` before
+sending a request (DEC-06). Deck draws, pile draws, returns and full
+reshuffles keep the record up to date. The record holds no game rules and no
+pile order; the game keeps its own ordered piles (INT-07).
+
 Planned public operations:
 
 - create ordered or shuffled decks;
@@ -63,7 +71,8 @@ Planned public operations:
 - request the documented Joker option;
 - draw one or more cards;
 - reshuffle all cards or only remaining cards;
-- add cards to a pile;
+- add drawn cards to a pile, rejecting cards not drawn by the client or
+  already in a pile;
 - shuffle and list a pile;
 - draw from a pile by top, bottom, random, or explicit card code;
 - return all or selected cards from drawn state or a pile.

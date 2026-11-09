@@ -382,6 +382,45 @@ and that invalid input makes no request.
 each route (`draw/bottom/`, `draw/random/`, pile and deck returns), parsing,
 and argument errors.
 
+> **Change (2026-11-09):** `piles` is a read-only `Mapping[str, int]`, not a
+> `dict`, and is empty when the response has no `piles` field. A listing of
+> an unknown pile, or a pile with no `cards` field, has no cards.
+>
+> **Reason:** the models are frozen, so their contents should not be
+> changeable either. The live API returns no `piles` when returning drawn
+> cards to the deck, and lists an unknown pile with no entry for it (OBS-05).
+
+> **Change (2026-11-09):** `draw_from_pile` rejects `count` and `cards`
+> together, and allows `cards` only when drawing from the top. With neither,
+> the API draws one card from the top.
+>
+> **Reason:** to follow the brief, which shows `cards` only on the top route
+> and says the bottom and random routes "also accept the count parameter".
+
+> **Change (2026-11-09):** `__init__.py` exports `PileResult`,
+> `PileDrawResult` and `PileListing`, and unit tests for the pile parsers'
+> error cases were added to `tests/unit/sdk/test_models.py`.
+>
+> **Reason:** the same as in step 6.
+
+> **Change (2026-11-09):** `DeckOfCardsClient` keeps a private record
+> (`_CardRecord`) of the cards it has drawn from each deck and the pile each
+> one is in. `add_to_pile` checks it first, and raises
+> `InvalidArgumentError` without sending a request for a card that was not
+> drawn through this client, is already in a pile, or is listed twice. Deck
+> draws, pile draws, returns and full reshuffles update the record. The
+> tests in `test_client_pile.py` cover each case.
+>
+> **Reason:** a review of this step (prompt 0005) found that the live API
+> accepts adding a card that was never drawn, and silently moves a card that
+> is already in another pile (OBS-05). The API cannot be asked which cards
+> are drawn, so the client must remember them (DEC-06).
+
+> **Note (2026-11-09):** an over-draw raises `ApiError` even though the API
+> still draws the cards that were left (OBS-04), so those cards are not
+> recorded and cannot be added to a pile. Pile operations do not work with
+> several decks, so the record treats each card code as one card.
+
 **Commit:** `feat(sdk): implement pile operations`
 
 ---
@@ -474,6 +513,16 @@ touching other code.
 > drawn first, between Kings and last, and a 54-card game.
 >
 > **Reason:** Jokers are binned instead of placed in a pile (DEC-02).
+
+> **Change (2026-11-09):** the engine runs on `DeckOfCardsClient`, whose card
+> record (DEC-06) rejects adding a card that was not drawn or is already in
+> a pile. The engine still keeps its own record of each pile, in the order
+> adds were confirmed, for the top and bottom cards (INT-07).
+> `FakeCardClient` does not copy the guard.
+>
+> **Reason:** the guard was added to the SDK in step 7. The SDK's record
+> does not keep the order of cards in a pile, so the game still needs its
+> own.
 
 **Commit:** `feat(game): implement discard engine`
 

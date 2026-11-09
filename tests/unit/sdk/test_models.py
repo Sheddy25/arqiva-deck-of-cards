@@ -13,6 +13,9 @@ from deck_of_cards_sdk.models import (
     parse_card,
     parse_deck,
     parse_draw,
+    parse_pile_draw,
+    parse_pile_listing,
+    parse_pile_result,
 )
 
 
@@ -209,3 +212,58 @@ def test_parses_a_draw_with_no_cards() -> None:
 def test_invalid_draw_is_rejected(overrides: dict[str, object], message: str) -> None:
     with pytest.raises(ResponseFormatError, match=message):
         parse_draw(draw_data(**overrides))
+
+
+@pytest.mark.parametrize(
+    "piles",
+    [
+        None,
+        ["discard"],
+        {"discard": 2},
+        {"discard": {"remaining": "x"}},
+        {"discard": {}},
+    ],
+)
+def test_invalid_pile_counts_are_rejected(piles: object) -> None:
+    data = {"deck_id": "abc123", "remaining": 50, "piles": piles}
+
+    with pytest.raises(ResponseFormatError):
+        parse_pile_result(data)
+
+
+def test_pile_result_without_piles_has_no_counts() -> None:
+    assert parse_pile_result({"deck_id": "abc123", "remaining": 52}).piles == {}
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        {"piles": {}},
+        {"deck_id": "abc123", "piles": {}},
+        {"deck_id": "abc123", "cards": "AS", "piles": {}},
+    ],
+)
+def test_invalid_pile_draw_is_rejected(data: dict[str, object]) -> None:
+    with pytest.raises(ResponseFormatError):
+        parse_pile_draw(data)
+
+
+@pytest.mark.parametrize(
+    "pile",
+    [
+        "discard",
+        {"remaining": 1, "cards": "AS"},
+        {"remaining": 1, "cards": [card_data("AS", "ACE", "HEARTS")]},
+    ],
+)
+def test_invalid_pile_listing_is_rejected(pile: object) -> None:
+    data = {"deck_id": "abc123", "remaining": 0, "piles": {"discard": pile}}
+
+    with pytest.raises(ResponseFormatError):
+        parse_pile_listing(data, "discard")
+
+
+def test_pile_listing_without_cards_is_empty() -> None:
+    data = {"deck_id": "abc123", "remaining": 0, "piles": {"discard": {"remaining": 0}}}
+
+    assert parse_pile_listing(data, "discard").cards == ()
