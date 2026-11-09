@@ -160,8 +160,7 @@ Constraints
 - Follow the brief exactly; do not keep behaviour that relies on
   undocumented API responses.
 - Do not remove the documented jokers_enabled option.
-- Make the change on its own branch, before step 4 starts.
-- Leave earlier prompt sheet entries unchanged.
+
 
 Output
 The code, test and documentation changes as a reviewable diff, and a short
@@ -171,3 +170,63 @@ Verification
 I will confirm no Joker handling remains in the code, check the
 documentation against both briefs, and re-run ruff, mypy and pytest.
 ```
+
+## Prompt 0005 — Review the pile operations step
+
+```text
+Role
+Act as a senior Python software engineer reviewing a pull request.
+
+Context
+Step 7 of docs/implementation-plan.md adds pile operations to the SDK:
+PileResult, PileDrawResult and PileListing with their parsers in
+src/deck_of_cards_sdk/models.py, and add_to_pile, shuffle_pile, list_pile,
+draw_from_pile and return_cards in src/deck_of_cards_sdk/client.py. The tests
+are in tests/integration/sdk/test_client_pile.py and
+tests/unit/sdk/test_models.py. The step must meet CH-01 and API-07 to API-11
+in docs/requirements.md. The live API behaves differently from the reference
+examples in places (OBS-03, OBS-05), and the game in steps 9 to 11 will add
+each drawn card to a pile and report every pile's top and bottom card
+(INT-07).
+
+Task
+1. Review the code and tests against those requirements, the API page
+   (https://deckofcardsapi.com/) and the plan's step 7, checking:
+   - every route, parameter and combination matches the API page, and
+     undocumented combinations are rejected;
+   - the parsers accept the response shapes seen on the live API, including
+     counts sent as strings, a missing piles field and an unknown pile;
+   - what the API allows that could corrupt the game's piles, such as adding
+     a card that was never drawn or is already in another pile, and whether
+     the SDK should guard against it;
+   - whether the tests would fail if the code were wrong;
+   - readability, naming, type hints and docstrings.
+2. Report findings ordered by severity (bug, risk, improvement, nitpick). For
+   each, give the file and line, the problem, and a concrete suggestion.
+3. Point out anything that is already done well, so I know what to keep.
+
+Constraints
+- Suggest only; do not edit any file.
+- Check API behaviour against the live API where the page is unclear, and
+  record what you observe; do not invent behaviour.
+- Keep game rules out of the SDK.
+- Avoid suggestions that add complexity without a clear benefit.
+
+Output
+A prioritised list of findings with suggested changes, then a one-line
+verdict on whether the step is ready to commit.
+
+Verification
+I will check each finding against the code and the live API, apply the ones
+I agree with, then re-run ruff, mypy and pytest before committing.
+```
+
+> **Outcome (2026-11-09):** the findings included: "the API doesn't stop you
+> adding a card that was never drawn, and adding a card that's already in
+> another pile silently moves it. The SDK can't detect either case, so the
+> game will only ever add the card it has just drawn and keep its own record
+> of each pile. That record is what we planned for step 10 anyway, so nothing
+> changes." I chose to have the SDK guard against this as well, so a fix
+> will be applied in step 7: `DeckOfCardsClient` records the cards it has
+> drawn and the pile each one is in, and `add_to_pile` rejects any other card
+> before sending a request (DEC-06).

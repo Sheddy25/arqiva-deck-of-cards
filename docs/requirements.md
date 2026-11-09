@@ -70,6 +70,7 @@ say.
 | OBS-02 | With `jokers_enabled=true`, the Jokers are `X1` (value `JOKER`, suit `BLACK`) and `X2` (value `JOKER`, suit `RED`). |
 | OBS-03 | The draw response returns `remaining` as a JSON number, while the pile list example (API-09) shows strings, so both forms must be accepted. |
 | OBS-04 | Recorded 2026-11-09. An unknown deck ID returns HTTP 404 with `{"success": false, "error": "Deck ID does not exist."}`. Drawing more cards than remain returns HTTP 200 with `"success": false` and an `error` message, but still draws the cards that were left. An invalid parameter such as `count=abc` returns an HTML HTTP 500 page. |
+| OBS-05 | Recorded 2026-11-09. Unlike the reference examples, a draw-from-pile response has no top-level `remaining`, and returning drawn cards to the deck gives no `piles` or `shuffled`. Listing an unknown pile succeeds with no entry for it. After a pile is shuffled, the list order no longer matches the order cards were added. Adding a card that was never drawn succeeds, and adding a card already in another pile moves it. Drawing more cards than a pile holds returns HTTP 404 with an `error` message. A full reshuffle (without `remaining=true`) empties every pile. Returning drawn cards to the deck leaves cards in piles where they are, even when they are listed in `cards`. |
 
 ## Interpretations (`INT`)
 
@@ -93,6 +94,7 @@ say.
 | DEC-03 | The repository is private during development and is made public or shared at submission. | CH-14 |
 | DEC-04 | AI prompts are recorded in [prompt-sheet.md](prompt-sheet.md). | CH-02, CH-12 |
 | DEC-05 | Each step is developed on its own feature branch and merged through a pull request with a merge commit. Branches are kept after merging. | CH-11, CH-14 |
+| DEC-06 | The SDK client guards pile adds. It records the cards it has drawn from each deck and the pile each one is in, and `add_to_pile` raises `InvalidArgumentError`, before any request, for a card it has not drawn, a card already in a pile, or a card listed twice. The record follows deck draws, pile draws, returns and full reshuffles, so only cards drawn through the same client can be added to piles. | API-07, OBS-05, INT-07 |
 
 > **Change to DEC-02 (2026-11-09):** DEC-02 first accepted Jokers in the
 > observed format, then rejected them with an error to follow the brief, and
@@ -114,7 +116,7 @@ Planned implementation and tests follow [implementation-plan.md](implementation-
 | API-06, OBS-01, OBS-02, DEC-02 | 3, 4 | `deck_of_cards_sdk/models.py` (`Card`, `parse_card`), `validation.py` | `tests/unit/sdk/test_models.py`, `test_validation.py` |
 | DEC-02 (binning) | 9, 10, 12, 13 | `card_game/rules.py`, `engine.py`, `events.py`, `cli.py` | `test_rules.py`, `test_engine.py`, `test_events.py`, `test_cli.py` |
 | API-01–API-05, OBS-03 | 4–6 | `validation.py`, `transport.py`, `client.py` | `tests/unit/sdk/`, `tests/integration/sdk/` |
-| API-07–API-11 | 7 | `client.py` pile operations | `tests/integration/sdk/test_client_pile.py` |
+| API-07–API-11, OBS-05, DEC-06 | 7 | `client.py` pile operations, `models.py` pile results | `tests/integration/sdk/test_client_pile.py`, `tests/unit/sdk/test_models.py` |
 | CH-03 | 10, 13 | `card_game/engine.py`, `ports.py`, `cli.py` | `tests/integration/app/` |
 | CH-04, INT-01 | 10 | `engine.py` | `tests/integration/app/test_engine.py` |
 | CH-05, INT-02 | 10 | `engine.py` | `tests/integration/app/test_engine.py` |

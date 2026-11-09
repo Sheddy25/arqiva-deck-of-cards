@@ -2,6 +2,7 @@
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from types import MappingProxyType
 
 from deck_of_cards_sdk.exceptions import ResponseFormatError
 from deck_of_cards_sdk.validation import (
@@ -118,14 +119,118 @@ def parse_draw(data: Mapping[str, object]) -> DrawResult:
         ResponseFormatError: if ``deck_id``, ``cards`` or ``remaining`` is
             missing or has the wrong type, or any card is invalid.
     """
-    cards = data.get("cards")
-    if not isinstance(cards, list):
-        raise ResponseFormatError(f"draw field 'cards' must be a list, got {cards!r}")
     return DrawResult(
         deck_id=_require_str(data, "deck_id", "draw"),
-        cards=tuple(_parse_card_item(item) for item in cards),
+        cards=_parse_cards(data.get("cards"), "draw"),
         remaining=parse_int_field(data.get("remaining"), "remaining"),
     )
+
+
+@dataclass(frozen=True)
+class PileResult:
+    """Cards remaining in the deck and in each pile, after adding, shuffling
+    or returning cards (API-07, API-08, API-11).
+
+    ``piles`` maps each pile name to its card count, and is empty when the
+    response has no ``piles`` field, as when returning cards to the deck
+    (OBS-05).
+    """
+
+    deck_id: str
+    remaining: int
+    piles: Mapping[str, int]
+
+
+@dataclass(frozen=True)
+class PileDrawResult:
+    """The cards drawn from a pile and the card count of each pile (API-10).
+
+    The live API sends no deck ``remaining`` here (OBS-05).
+    """
+
+    deck_id: str
+    cards: tuple[Card, ...]
+    piles: Mapping[str, int]
+
+
+@dataclass(frozen=True)
+class PileListing:
+    """The cards in one pile (API-09).
+
+    The order is whatever the API returns and is not guaranteed to be the
+    order the cards were added (INT-07, OBS-05).
+    """
+
+    deck_id: str
+    pile_name: str
+    cards: tuple[Card, ...]
+
+
+def parse_pile_result(data: Mapping[str, object]) -> PileResult:
+    """Build a :class:`PileResult` from an add, shuffle or return response.
+
+    Raises:
+        ResponseFormatError: if a field is missing or has the wrong type.
+    """
+    return PileResult(
+        deck_id=_require_str(data, "deck_id", "pile"),
+        remaining=parse_int_field(data.get("remaining"), "remaining"),
+        piles=_parse_pile_counts(data),
+    )
+
+
+def parse_pile_draw(data: Mapping[str, object]) -> PileDrawResult:
+    """Build a :class:`PileDrawResult` from a draw-from-pile response.
+
+    Raises:
+        ResponseFormatError: if a field is missing or has the wrong type, or
+            any card is invalid.
+    """
+    return PileDrawResult(
+        deck_id=_require_str(data, "deck_id", "pile draw"),
+        cards=_parse_cards(data.get("cards"), "pile draw"),
+        piles=_parse_pile_counts(data),
+    )
+
+
+def parse_pile_listing(data: Mapping[str, object], pile_name: str) -> PileListing:
+    """Build a :class:`PileListing` for ``pile_name`` from a list response.
+
+    A pile that does not exist, or has no ``cards`` field, has no cards: the
+    live API lists an unknown pile successfully with no entry for it (OBS-05).
+
+    Raises:
+        ResponseFormatError: if a field is missing or has the wrong type, or
+            any card is invalid.
+    """
+    deck_id = _require_str(data, "deck_id", "pile list")
+    pile = _piles(data).get(pile_name, {})
+    if not isinstance(pile, Mapping):
+        raise ResponseFormatError(f"pile {pile_name!r} must be a JSON object")
+    cards = _parse_cards(pile.get("cards", []), f"pile {pile_name!r}")
+    return PileListing(deck_id=deck_id, pile_name=pile_name, cards=cards)
+
+
+def _piles(data: Mapping[str, object]) -> Mapping[str, object]:
+    piles = data.get("piles", {})
+    if not isinstance(piles, Mapping):
+        raise ResponseFormatError(f"field 'piles' must be a JSON object, got {piles!r}")
+    return piles
+
+
+def _parse_pile_counts(data: Mapping[str, object]) -> Mapping[str, int]:
+    counts: dict[str, int] = {}
+    for name, pile in _piles(data).items():
+        if not isinstance(pile, Mapping):
+            raise ResponseFormatError(f"pile {name!r} must be a JSON object")
+        counts[name] = parse_int_field(pile.get("remaining"), f"{name}.remaining")
+    return MappingProxyType(counts)
+
+
+def _parse_cards(value: object, what: str) -> tuple[Card, ...]:
+    if not isinstance(value, list):
+        raise ResponseFormatError(f"{what} field 'cards' must be a list, got {value!r}")
+    return tuple(_parse_card_item(item) for item in value)
 
 
 def _parse_card_item(item: object) -> Card:
