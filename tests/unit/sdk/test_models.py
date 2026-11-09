@@ -1,4 +1,4 @@
-"""Tests for Card parsing (API-06, API-13, OBS-01, DEC-02)."""
+"""Tests for Card parsing (API-06, API-13, OBS-01, OBS-02, DEC-02)."""
 
 import dataclasses
 
@@ -28,6 +28,7 @@ def test_parses_a_standard_card() -> None:
     )
     assert card.rank == "6"
     assert not card.is_king
+    assert not card.is_joker
 
 
 def test_zero_code_is_ten() -> None:
@@ -58,9 +59,11 @@ def test_every_king_is_a_king(code: str) -> None:
 
 
 @pytest.mark.parametrize(("code", "suit"), [("X1", "BLACK"), ("X2", "RED")])
-def test_undocumented_joker_codes_are_rejected(code: str, suit: str) -> None:
-    with pytest.raises(ResponseFormatError, match="unknown card code"):
-        parse_card(card_data(code, "JOKER", suit))
+def test_parses_jokers(code: str, suit: str) -> None:
+    card = parse_card(card_data(code, "JOKER", suit))
+
+    assert card.is_joker
+    assert not card.is_king
 
 
 def test_lower_case_code_is_normalised() -> None:
@@ -107,6 +110,8 @@ def test_unknown_code_is_rejected(code: str) -> None:
         ("5S", "5", "HEARTS"),
         ("KS", "QUEEN", "SPADES"),
         ("0H", "0", "HEARTS"),
+        ("X1", "JOKER", "RED"),
+        ("X2", "KING", "RED"),
     ],
 )
 def test_value_or_suit_not_matching_code_is_rejected(

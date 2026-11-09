@@ -88,10 +88,20 @@ say.
 | ID | Decision | Relates to |
 | --- | --- | --- |
 | DEC-01 | The SDK and application are written in Python 3.12 or newer. | CH-01 |
-| DEC-02 | The SDK follows the brief: it supports only the documented two-character card codes (API-06). It still offers the documented `jokers_enabled` option (API-04), but the Joker codes are undocumented (OBS-02), so parsing a Joker raises a clear error. | API-04, API-06, OBS-02 |
+| DEC-02 | Jokers are binned. The SDK recognises Jokers by the observed format (OBS-02) and returns them as cards. The game never places a Joker in a pile: it bins each one drawn, logs it as a transaction, and reports how many were binned. The game uses a standard shuffled pack (CH-04), so Jokers only appear if they are enabled. | API-04, OBS-02, CH-04, CH-09 |
 | DEC-03 | The repository is private during development and is made public or shared at submission. | CH-14 |
 | DEC-04 | AI prompts are recorded in [prompt-sheet.md](prompt-sheet.md). | CH-02, CH-12 |
 | DEC-05 | Each step is developed on its own feature branch and merged through a pull request with a merge commit. Branches are kept after merging. | CH-11, CH-14 |
+
+> **Change to DEC-02 (2026-11-09):** DEC-02 first accepted Jokers in the
+> observed format, then rejected them with an error to follow the brief, and
+> now bins them in the game.
+>
+> **Reason:** rejecting Jokers made a game with Jokers enabled fail with an
+> error. Binning keeps the brief's piles unchanged, while still handling the
+> documented `jokers_enabled` option (API-04). Recognising a Joker relies on
+> observed behaviour (OBS-02), because the reference does not document Joker
+> codes.
 
 ## Traceability
 
@@ -100,7 +110,8 @@ Planned implementation and tests follow [implementation-plan.md](implementation-
 | Requirement | Plan step | Implementation | Tests |
 | --- | --- | --- | --- |
 | CH-01, DEC-01 | 2–8 | `src/deck_of_cards_sdk/` | `tests/unit/sdk/`, `tests/integration/sdk/`, `tests/smoke/` |
-| API-06, OBS-01, DEC-02 | 3, 4 | `deck_of_cards_sdk/models.py` (`Card`, `parse_card`), `validation.py` | `tests/unit/sdk/test_models.py`, `test_validation.py` |
+| API-06, OBS-01, OBS-02, DEC-02 | 3, 4 | `deck_of_cards_sdk/models.py` (`Card`, `parse_card`), `validation.py` | `tests/unit/sdk/test_models.py`, `test_validation.py` |
+| DEC-02 (binning) | 9, 10, 12, 13 | `card_game/rules.py`, `engine.py`, `events.py`, `cli.py` | `test_rules.py`, `test_engine.py`, `test_events.py`, `test_cli.py` |
 | API-01–API-05, OBS-03 | 4–6 | `validation.py`, `transport.py`, `client.py` | `tests/unit/sdk/`, `tests/integration/sdk/` |
 | API-07–API-11 | 7 | `client.py` pile operations | `tests/integration/sdk/test_client_pile.py` |
 | CH-03 | 10, 13 | `card_game/engine.py`, `ports.py`, `cli.py` | `tests/integration/app/` |

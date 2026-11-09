@@ -145,6 +145,14 @@ mismatch.
 > two-character rank-and-suit codes (API-06) and never documents Joker codes,
 > so the SDK does not rely on undocumented behaviour.
 
+> **Change (2026-11-09):** Joker parsing was restored: `parse_card` accepts
+> `X1` (`BLACK`) and `X2` (`RED`) with value `JOKER`, and `Card.is_joker` is
+> back (OBS-02, DEC-02).
+>
+> **Reason:** rejecting Jokers made a game with Jokers enabled stop with an
+> error. Instead the game bins them (steps 9 to 13), so the SDK must be able
+> to recognise them.
+
 **Commit:** `feat(sdk): add card model and parsing`
 
 ---
@@ -205,6 +213,13 @@ number.
 >
 > **Reason:** a separate attribute would duplicate what every Python
 > exception already holds.
+
+> **Change (2026-11-09):** `JOKER_SUITS` and `JOKER_VALUE` were added to
+> `validation.py`, and `is_card_code` and `validate_card_codes` also accept
+> `X1` and `X2` (DEC-02).
+>
+> **Reason:** Jokers are now real cards in the SDK (see step 3), so they can
+> be named in requests such as returning cards to the deck.
 
 **Commit:** `feat(sdk): add exceptions and input validation`
 
@@ -271,6 +286,12 @@ Validate every argument before calling the transport.
 >
 > **Reason:** the option is documented (API-04), but the Joker card codes are
 > not, so the SDK cannot parse them (see step 3).
+
+> **Change (2026-11-09):** replaces the note above. Drawing a Joker returns a
+> normal `Card` with `is_joker` true; deciding what to do with it is left to
+> the game (DEC-02).
+>
+> **Reason:** the game now bins Jokers rather than failing.
 
 **`src/deck_of_cards_sdk/__init__.py`** — export the client, the models and
 the exceptions.
@@ -351,6 +372,14 @@ This is the only place the King rule lives.
 `tests/unit/game/test_models.py` cover a King versus other ranks, top and
 bottom, and counts.
 
+> **Change (2026-11-09):** `rules.py` also gets
+> `should_bin_card(card: Card) -> bool`, which returns `card.is_joker`, and
+> `GameResult` gains `binned: tuple[Card, ...]`. The tests cover a Joker
+> being binned and a King or other card not being binned.
+>
+> **Reason:** Jokers are binned instead of placed in a pile (DEC-02). Keeping
+> the check in `rules.py` puts every game rule in one place.
+
 **Commit:** `feat(game): add King rule and discard pile model`
 
 ---
@@ -382,6 +411,14 @@ cards in a fixed order and records every call.
 King; last card a King; consecutive Kings; cards before the first King; draws
 always use `count=1`; and an Ace rule changing the boundaries without
 touching other code.
+
+> **Change (2026-11-09):** after each draw, a card matching
+> `should_bin_card` is binned: it is not added to any pile, does not start a
+> pile, and is recorded in `GameResult.binned`. The invariants become "every
+> card drawn is either placed once or binned once". The tests add a Joker
+> drawn first, between Kings and last, and a 54-card game.
+>
+> **Reason:** Jokers are binned instead of placed in a pile (DEC-02).
 
 **Commit:** `feat(game): implement discard engine`
 
@@ -430,6 +467,11 @@ attempt before the call and the confirmed result after it.
 appears with the right context, and that the JSON formatter produces valid
 JSON.
 
+> **Change (2026-11-09):** added a `card.binned` event, logged each time a
+> Joker is binned.
+>
+> **Reason:** binning a card is a game transaction (CH-09, INT-06, DEC-02).
+
 **Commit:** `feat(game): add transaction logging`
 
 ---
@@ -456,6 +498,13 @@ JSON.
 **`tests/unit/game/test_cli.py`** — run `main` with the fake client: success
 output and exit 0, face-down progress, the final table values, and a failure
 with a non-zero exit.
+
+> **Change (2026-11-09):** a binned Joker shows a progress line such as
+> `Card 17/54 → binned (Joker)`, and the final report adds a
+> `Jokers binned: N` line. The tests cover a game with Jokers.
+>
+> **Reason:** the user sees each Joker being binned and the total at the end
+> (DEC-02).
 
 **Commit:** `feat(cli): add game demonstration`
 
