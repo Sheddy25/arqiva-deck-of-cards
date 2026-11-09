@@ -3,7 +3,7 @@
 ## Status and goals
 
 - Status: implementation baseline
-- Last reviewed: 2026-11-08
+- Last reviewed: 2026-11-09
 - Code status: in progress; see [implementation-plan.md](implementation-plan.md)
 - Requirements: see [requirements.md](requirements.md)
 
@@ -46,7 +46,7 @@ nothing about Kings, discard piles, or game completion.
 | --- | --- |
 | `client.py` | Public `DeckOfCardsClient` operations and endpoint-specific parameter construction |
 | `models.py` | Immutable typed cards, deck state, pile state, and parsed operation results |
-| `transport.py` | One place for HTTPS requests, timeout handling, HTTP status handling, JSON decoding, and safe read retry policy |
+| `transport.py` | One place for HTTPS requests, timeout handling, HTTP status handling and JSON decoding, with no automatic retries |
 | `validation.py` | Deck ID, pile name, count, deck count, card code, and option validation |
 | `exceptions.py` | Stable SDK exception hierarchy that does not leak `httpx` as the public contract |
 | `__init__.py` | Small, intentional public API |
@@ -72,10 +72,10 @@ Planned public operations:
 
 | Module | Responsibility |
 | --- | --- |
-| `engine.py` | Orchestrate draw, rule decision, remote pile add, state transition, and completion checks |
-| `models.py` | Game state, confirmed discard pile, interruption details, and final report |
+| `engine.py` | Orchestrate draw, rule decision, remote pile add, state transition, completion checks, and `GameInterruptedError` |
+| `models.py` | Confirmed discard piles and the final game result |
 | `ports.py` | Minimal client `Protocol` required by the engine, enabling a deterministic fake |
-| `rules.py` | One focused `should_start_new_pile(card)` default rule |
+| `rules.py` | The game rules: `should_start_new_pile(card)` (a King) and `should_bin_card(card)` (a Joker) |
 | `events.py` | Typed transaction event names and context creation |
 | `cli.py` | Parse options, configure logging, run the engine, render summaries, and map failures to exit codes |
 | `__main__.py` | `python -m card_game` entry point only |
@@ -96,9 +96,11 @@ The CLI is a composition root and renderer. It may show:
 
 - game and deck initialisation;
 - face-down progress such as `Card 17/52 -> discard_2 [face down]`;
+- a binned Joker, such as `Card 17/54 -> binned (Joker)`;
 - confirmed pile creation;
 - completion or interruption;
-- a final text table of pile name, bottom card, top card, and count.
+- a final text table of pile name, bottom card, top card, and count, plus the
+  number of Jokers binned.
 
 It does not decide when to create piles or mutate game state directly.
 
@@ -160,7 +162,10 @@ flowchart TD
     HasCards -- yes --> Draw[Attempt draw count=1]
     Draw --> DrawOK{Exactly one valid card confirmed?}
     DrawOK -- no --> DrawStop[Stop; card identity may be unknown]
-    DrawOK -- yes --> Decide{No current pile or rule matches?}
+    DrawOK -- yes --> Joker{Joker?}
+    Joker -- yes --> Bin[Bin the card and log it]
+    Bin --> HasCards
+    Joker -- no --> Decide{No current pile or rule matches?}
     Decide -- yes --> Reserve[Reserve next discard_N name]
     Decide -- no --> Current[Use current pile]
     Reserve --> Add[Attempt remote pile add]
@@ -183,25 +188,22 @@ Remote and local operations are intentionally ordered:
 6. only after a valid success response, append the card to the local pile and
    clear pending state.
 
-An operation can finish in one of four outcome states:
+A failed operation stops the game with a `GameInterruptedError` whose outcome
+is one of:
 
-- `not_dispatched`: validation or transport evidence proves no request was sent;
-- `confirmed`: a complete, valid `success: true` response confirms the expected
-  state transition;
-- `rejected`: a complete API response explicitly reports that the requested
-  operation failed; or
-- `unknown`: a timeout, connection loss after dispatch, server error, malformed
-  response, or incomplete success response means the remote effect cannot be
-  proved.
+- `rejected`: the API answered and refused the request, for example
+  `"success": false` or an HTTP 404 for an unknown deck; or
+- `unknown`: a timeout, connection loss, server error or malformed response
+  means the remote effect cannot be proved.
 
-The `unknown` state is used whenever dispatch cannot be ruled out; a generic
-connection error is not automatically assumed to be pre-dispatch.
+A rejected draw can still change state: drawing more cards than remain still
+draws the cards that were left (OBS-04). The game avoids this by drawing one
+card only while cards remain.
 
-If the draw outcome is unknown, the engine may know no card code at all. If the
-draw was confirmed but the add was rejected or unknown, the engine retains the
-known card and intended pile as pending. In both cases it stops because
-retrying could repeat a state change. It never states that the card was
-successfully discarded.
+If a draw fails, the engine may know no card code at all. If the draw was
+confirmed but the add was rejected or unknown, the error keeps the known card
+and intended pile. In both cases it stops because retrying could repeat a
+state change. It never states that the card was successfully discarded.
 
 ### Pile allocation
 
@@ -256,18 +258,12 @@ game uses a standard shuffled deck, so Jokers only appear if they are enabled.
 
 ### Game models
 
-`GameState` owns:
+`GameResult` owns the deck ID, the ordered confirmed discard piles, the binned
+Jokers, and the number of cards remaining.
 
-- deck ID and expected initial size;
-- latest reported number of cards remaining;
-- ordered drawn card codes;
-- ordered confirmed discard piles;
-- an optional drawn-but-unconfirmed pending card;
-- transaction sequence.
-
-An interruption value owns the operation name, one of the outcome states above,
-and optional card/pile context. Card and pile are absent when a draw outcome is
-unknown or not dispatched.
+`GameInterruptedError` owns the operation name, one of the outcome states
+above, an optional card and pile, and the piles confirmed so far. Card and
+pile are absent when a draw fails.
 
 Each confirmed `DiscardPile` owns an ordered card list:
 
@@ -280,46 +276,41 @@ preventing summary data from drifting away from confirmed operations.
 
 ## SDK transport boundary
 
-The SDK will use an injected `httpx.Client` or compatible transport. Production
-construction supplies:
+`HttpTransport` accepts an optional `httpx.Client`; otherwise it creates its
+own. It uses:
 
 - an HTTPS-only base URL;
-- explicit connect, read, write, and pool timeouts;
-- a descriptive User-Agent;
+- a 10-second timeout for connecting, reading, writing and pooling;
 - no credentials, because the public API requires none.
 
 Tests use `httpx.MockTransport`, allowing assertions on paths and query
 parameters without network access.
 
-All JSON requests pass through one transport method. That method translates:
+All JSON requests pass through one transport method, `get_json`. It translates:
 
-- connection errors;
-- timeouts;
-- non-successful HTTP status codes;
-- invalid JSON;
-- non-object JSON roots; and
-- API payloads with `success` other than `true`.
+- timeouts into `RequestTimeoutError`;
+- connection failures into `ConnectionFailedError`;
+- other network failures into `TransportError`;
+- non-2xx HTTP status codes into `HttpStatusError`;
+- invalid JSON, non-object JSON roots, and a missing or non-boolean `success`
+  into `ResponseFormatError`; and
+- `"success": false` into `ApiError`.
 
-into stable custom SDK exceptions.
+Error messages use the API's own `error` text when the body is JSON (OBS-04).
 
 ### Retry policy
 
-The default is no automatic retry. This is intentionally conservative because
-the API uses HTTP `GET` even for semantically state-changing operations.
-
-The design leaves a narrow extension point for at most two retries of a
-read-only pile-list request on a transient connection/5xx failure. Draw,
-create, shuffle, add, pile draw, and return are never automatically replayed.
-No retry dependency is needed for the initial implementation.
+There are no automatic retries. The API uses HTTP `GET` even for
+state-changing operations such as draw and add, so a retry could draw or move
+a card twice (INT-08).
 
 ## Completion invariants
 
 For every successful game, structural invariants check:
 
-- every drawn code appears exactly once in confirmed piles;
+- every drawn card appears exactly once, either in a confirmed pile or binned;
 - no pile is empty;
 - the API reports zero cards remaining;
-- no pending card exists; and
 - every card matching the active rule is the bottom card of a new pile;
 - every pile after the first starts with a card matching the active rule; and
 - the first pile starts with a matching card only when the first draw matches,
@@ -343,19 +334,16 @@ An invariant failure is a failed game even if all HTTP calls returned success.
 Python's standard `logging` package is sufficient. Event names are stable
 machine-friendly strings, while handlers choose presentation.
 
-Planned events include:
+Planned events, as listed in step 12 of the implementation plan:
 
-- `deck.create.attempted`, `deck.create.confirmed`;
-- `card.draw.attempted`, `card.draw.confirmed`;
-- `pile.create.planned`, `pile.create.confirmed`;
-- `pile.add.attempted`, `pile.add.confirmed`;
-- `operation.not_dispatched`, `operation.rejected`,
-  `operation.outcome_unknown`;
-- `game.completed`, `game.interrupted`;
-- `pile.summary`.
+- `deck.created`, `card.drawn`, `pile.created`, `card.discarded`;
+- `card.binned` for each Joker binned;
+- `operation.failed`;
+- `game.completed`, `game.interrupted`.
 
-Useful fields include event, transaction sequence, deck ID, card code, pile,
-cards remaining, outcome, and error category. The default console formatter is
+The engine logs the attempt before each API call and the confirmed result
+after it. Useful fields include event, transaction sequence, deck ID, card
+code, pile, cards remaining, outcome, and error category. The default console formatter is
 readable; an optional JSON Lines handler supports an audit trail. Neither
 formatter logs environment variables, request headers, or response bodies by
 default.
@@ -391,8 +379,8 @@ routine CI and never supplies the only evidence for a rule.
 - CI runs formatting, linting, type checking, tests and a package build on
   every pull request (implementation plan step 14).
 - Raw API response bodies are not included in normal exception messages.
-- The exposed GitHub token from the initial conversation must be revoked and is
-  not used or preserved in project files.
+- The GitHub access tokens used during development must be revoked before
+  submission; they are never stored in project files or Git configuration.
 
 ## Known limitations
 

@@ -328,6 +328,26 @@ Validate every argument before calling the transport.
 >
 > **Reason:** the game now bins Jokers rather than failing.
 
+> **Change (2026-11-09):** `create_deck` only allows the documented
+> combinations. A shuffled deck accepts `deck_count` (API-01) and `cards`
+> (API-05); an unshuffled deck accepts `jokers_enabled` (API-04). Any other
+> combination raises `InvalidArgumentError` before a request is sent. A
+> shuffled deck with Jokers is made by creating an unshuffled deck with
+> `jokers_enabled=True` and then calling `shuffle_deck` (API-03).
+>
+> **Reason:** to follow the brief, which documents each option on one
+> endpoint only. Both steps of the Joker route are documented, and it was
+> checked against the live API.
+
+> **Change (2026-11-09):** `close()` only closes a transport the client
+> created itself, and `__init__.py` also exports `HttpTransport`. Unit tests
+> for `parse_deck` and `parse_draw` were added to
+> `tests/unit/sdk/test_models.py`.
+>
+> **Reason:** callers can pass in their own transport, which the client must
+> not close. The parsers' error cases are simpler to test directly than
+> through the client.
+
 **`src/deck_of_cards_sdk/__init__.py`** — export the client, the models and
 the exceptions.
 
@@ -558,6 +578,9 @@ with a non-zero exit.
   `python -m build`;
 - no live API calls, because the smoke tests stay excluded.
 
+> **Note (2026-11-09):** `python -m build` needs the `build` package, which
+> is not in the `dev` dependencies. Add it to `dev` in this step.
+
 **Commit:** `ci: add quality checks workflow`
 
 ---
@@ -584,5 +607,4 @@ with a non-zero exit.
 
 - Practise one rule change on its own branch, without merging it (CH-13).
 - Run `DECK_API_SMOKE=1 pytest -m smoke` and one live game.
-- Revoke the access tokens, then make the repository public or invite the
-  reviewers, and send the link (CH-14, CH-15).
+

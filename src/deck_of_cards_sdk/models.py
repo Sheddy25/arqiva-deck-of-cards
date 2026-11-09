@@ -10,6 +10,7 @@ from deck_of_cards_sdk.validation import (
     RANK_VALUES,
     SUIT_NAMES,
     is_card_code,
+    parse_int_field,
 )
 
 
@@ -70,18 +71,83 @@ def parse_card(data: Mapping[str, object]) -> Card:
     return Card(code=code, value=value, suit=suit, image=image)
 
 
+@dataclass(frozen=True)
+class Deck:
+    """A deck's state after it is created or reshuffled (API-01, API-03,
+    API-04, API-05)."""
+
+    deck_id: str
+    shuffled: bool
+    remaining: int
+
+
+@dataclass(frozen=True)
+class DrawResult:
+    """The cards drawn from a deck and how many remain (API-02)."""
+
+    deck_id: str
+    cards: tuple[Card, ...]
+    remaining: int
+
+
+def parse_deck(data: Mapping[str, object]) -> Deck:
+    """Build a :class:`Deck` from a create or reshuffle response.
+
+    Raises:
+        ResponseFormatError: if ``deck_id``, ``shuffled`` or ``remaining`` is
+            missing or has the wrong type.
+    """
+    shuffled = data.get("shuffled")
+    if not isinstance(shuffled, bool):
+        raise ResponseFormatError(
+            f"deck field 'shuffled' must be true or false, got {shuffled!r}"
+        )
+    return Deck(
+        deck_id=_require_str(data, "deck_id", "deck"),
+        shuffled=shuffled,
+        remaining=parse_int_field(data.get("remaining"), "remaining"),
+    )
+
+
+def parse_draw(data: Mapping[str, object]) -> DrawResult:
+    """Build a :class:`DrawResult` from a draw response.
+
+    ``remaining`` may be a number or a decimal string (OBS-03).
+
+    Raises:
+        ResponseFormatError: if ``deck_id``, ``cards`` or ``remaining`` is
+            missing or has the wrong type, or any card is invalid.
+    """
+    cards = data.get("cards")
+    if not isinstance(cards, list):
+        raise ResponseFormatError(f"draw field 'cards' must be a list, got {cards!r}")
+    return DrawResult(
+        deck_id=_require_str(data, "deck_id", "draw"),
+        cards=tuple(_parse_card_item(item) for item in cards),
+        remaining=parse_int_field(data.get("remaining"), "remaining"),
+    )
+
+
+def _parse_card_item(item: object) -> Card:
+    if not isinstance(item, Mapping):
+        raise ResponseFormatError(
+            f"each card must be a JSON object, not {type(item).__name__}"
+        )
+    return parse_card(item)
+
+
 def _expected_value_and_suit(code: str) -> tuple[str, str]:
     if code in JOKER_SUITS:
         return JOKER_VALUE, JOKER_SUITS[code]
     return RANK_VALUES[code[0]], SUIT_NAMES[code[1]]
 
 
-def _require_str(data: Mapping[str, object], field: str) -> str:
+def _require_str(data: Mapping[str, object], field: str, what: str = "card") -> str:
     if field not in data:
-        raise ResponseFormatError(f"card is missing the {field!r} field")
+        raise ResponseFormatError(f"{what} is missing the {field!r} field")
     value = data[field]
     if not isinstance(value, str):
         raise ResponseFormatError(
-            f"card field {field!r} must be a string, not {type(value).__name__}"
+            f"{what} field {field!r} must be a string, not {type(value).__name__}"
         )
     return value
