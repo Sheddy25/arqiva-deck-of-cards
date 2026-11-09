@@ -254,6 +254,41 @@ number.
 for: success, 404, 500, timeout, connection error, invalid JSON, a list root,
 `success: false`, a missing `success`, and an HTTP base URL being rejected.
 
+> **Change (2026-11-09):** a missing or non-boolean `success` raises
+> `ResponseFormatError`; only `"success": false` raises `ApiError`.
+>
+> **Reason:** `false` means the API refused the request, while a missing
+> field means the response cannot be trusted. Step 11 treats these
+> differently, as `rejected` and `unknown`.
+
+> **Change (2026-11-09):** `HttpStatusError` and `ApiError` messages use the
+> API's own `error` text when the body is JSON, such as
+> `HTTP 404: Deck ID does not exist.`, and otherwise the HTTP reason phrase.
+> HTML error pages are never included.
+>
+> **Reason:** the live API sends useful error text with some failures
+> (OBS-04), and the architecture says raw response bodies are not put in
+> error messages.
+
+> **Change (2026-11-09):** any other `httpx` network error, such as a read
+> error, raises the base `TransportError`. The base URL must also have a host,
+> a missing trailing `/` is added, and `close()` only closes a client the
+> transport created itself, not one passed in. The tests cover each of these.
+>
+> **Reason:** callers should never need to catch `httpx` exceptions, and a
+> transport must not close a client that someone else owns.
+
+> **Change (2026-11-09):** added empty `tests/integration/__init__.py` and
+> `tests/integration/sdk/__init__.py` files.
+>
+> **Reason:** the same as in step 3: test modules with the same name in
+> different folders must not clash.
+
+> **Note (2026-11-09):** drawing more cards than remain still draws the cards
+> that were left, even though it reports `"success": false` (OBS-04). The game
+> avoids this by drawing one card at a time only while cards remain; step 11
+> should treat an `ApiError` from a draw as a possible change of state.
+
 **Commit:** `feat(sdk): add HTTP transport with error handling`
 
 ---
