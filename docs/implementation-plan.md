@@ -183,6 +183,29 @@ Update `parse_card` to raise `ResponseFormatError`.
 for every function, including `True` passed as a count and `"4x"` as a
 number.
 
+> **Change (2026-11-09):** the card-code tables
+> (`RANK_VALUES`, `SUIT_NAMES`) and a new `is_card_code(code)` function were
+> moved from `models.py` into `validation.py`.
+>
+> **Reason:** `parse_card` and `validate_card_codes` need the same list of
+> valid codes, so they share one copy. The copy cannot stay in `models.py`,
+> because step 6 makes `models.py` import `validation.py` for
+> `parse_int_field`, and two modules importing each other would fail.
+
+> **Change (2026-11-09):** added
+> `tests/unit/sdk/test_exceptions.py`, which checks that every error is a
+> `DeckOfCardsError` and that `HttpStatusError` keeps its `status_code`.
+>
+> **Reason:** the hierarchy is part of the SDK's public contract, and a few
+> small tests stop it changing by accident.
+
+> **Change (2026-11-09):** `ApiError` stores the API's
+> message as the normal exception message (`str(error)`), not as a separate
+> `message` attribute.
+>
+> **Reason:** a separate attribute would duplicate what every Python
+> exception already holds.
+
 **Commit:** `feat(sdk): add exceptions and input validation`
 
 ---
