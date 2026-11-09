@@ -88,7 +88,7 @@ say.
 | ID | Decision | Relates to |
 | --- | --- | --- |
 | DEC-01 | The SDK and application are written in Python 3.12 or newer. | CH-01 |
-| DEC-02 | The SDK accepts Jokers in the format observed in OBS-02, so the documented Joker option (API-04) works. | API-04, OBS-02 |
+| DEC-02 | The SDK follows the brief: it supports only the documented two-character card codes (API-06). It still offers the documented `jokers_enabled` option (API-04), but the Joker codes are undocumented (OBS-02), so parsing a Joker raises a clear error. | API-04, API-06, OBS-02 |
 | DEC-03 | The repository is private during development and is made public or shared at submission. | CH-14 |
 | DEC-04 | AI prompts are recorded in [prompt-sheet.md](prompt-sheet.md). | CH-02, CH-12 |
 | DEC-05 | Each step is developed on its own feature branch and merged through a pull request with a merge commit. Branches are kept after merging. | CH-11, CH-14 |
@@ -100,7 +100,7 @@ Planned implementation and tests follow [implementation-plan.md](implementation-
 | Requirement | Plan step | Implementation | Tests |
 | --- | --- | --- | --- |
 | CH-01, DEC-01 | 2–8 | `src/deck_of_cards_sdk/` | `tests/unit/sdk/`, `tests/integration/sdk/`, `tests/smoke/` |
-| API-06, OBS-01, OBS-02, DEC-02 | 3 | `deck_of_cards_sdk/models.py` (`Card`, `parse_card`) | `tests/unit/sdk/test_models.py` |
+| API-06, OBS-01, DEC-02 | 3, 4 | `deck_of_cards_sdk/models.py` (`Card`, `parse_card`), `validation.py` | `tests/unit/sdk/test_models.py`, `test_validation.py` |
 | API-01–API-05, OBS-03 | 4–6 | `validation.py`, `transport.py`, `client.py` | `tests/unit/sdk/`, `tests/integration/sdk/` |
 | API-07–API-11 | 7 | `client.py` pile operations | `tests/integration/sdk/test_client_pile.py` |
 | CH-03 | 10, 13 | `card_game/engine.py`, `ports.py`, `cli.py` | `tests/integration/app/` |
