@@ -1,5 +1,5 @@
-"""Tests for argument and response-field validation (API-06, API-09, OBS-03,
-DEC-02)."""
+"""Tests for argument and response-field validation (API-06, API-09, OBS-02,
+OBS-03, DEC-02)."""
 
 import pytest
 
@@ -14,12 +14,12 @@ from deck_of_cards_sdk.validation import (
 )
 
 
-@pytest.mark.parametrize("code", ["AS", "0H", "KD", "9C", "qh", "jS"])
-def test_documented_codes_are_card_codes(code: str) -> None:
+@pytest.mark.parametrize("code", ["AS", "0H", "KD", "9C", "qh", "jS", "X1", "x2"])
+def test_standard_codes_and_jokers_are_card_codes(code: str) -> None:
     assert is_card_code(code)
 
 
-@pytest.mark.parametrize("code", ["", "A", "1S", "10H", "KX", "KSS", "X1", "X2"])
+@pytest.mark.parametrize("code", ["", "A", "1S", "10H", "KX", "KSS", "X3", "XX"])
 def test_other_codes_are_not_card_codes(code: str) -> None:
     assert not is_card_code(code)
 
@@ -62,7 +62,7 @@ def test_invalid_pile_name_is_rejected(name: object) -> None:
 
 
 def test_card_codes_are_returned_upper_cased() -> None:
-    assert validate_card_codes(["as", "0H", "Kd"]) == ("AS", "0H", "KD")
+    assert validate_card_codes(["as", "0H", "Kd", "x1"]) == ("AS", "0H", "KD", "X1")
 
 
 def test_card_codes_accept_any_iterable() -> None:
@@ -80,7 +80,7 @@ def test_single_string_of_card_codes_is_rejected() -> None:
 
 
 @pytest.mark.parametrize(
-    "codes", [["AS", "1S"], ["X1"], ["AS", ""], ["AS", None], ["AS,2S"]]
+    "codes", [["AS", "1S"], ["X3"], ["AS", ""], ["AS", None], ["AS,2S"]]
 )
 def test_invalid_card_code_is_rejected(codes: list[object]) -> None:
     with pytest.raises(InvalidArgumentError, match="invalid card codes"):

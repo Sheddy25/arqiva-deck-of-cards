@@ -29,18 +29,25 @@ RANK_VALUES = {
 # Code suit -> API suit name (API-06, OBS-01).
 SUIT_NAMES = {"S": "SPADES", "D": "DIAMONDS", "C": "CLUBS", "H": "HEARTS"}
 
+# Joker code -> API suit name. Not in the API reference; observed from the
+# live API (OBS-02, DEC-02).
+JOKER_SUITS = {"X1": "BLACK", "X2": "RED"}
+JOKER_VALUE = "JOKER"
+
 _DECK_ID = re.compile(r"[A-Za-z0-9]+")
 _PILE_NAME = re.compile(r"[A-Za-z0-9_-]+")
 _DECIMAL = re.compile(r"[0-9]+")
 
 
 def is_card_code(code: str) -> bool:
-    """Whether ``code`` is a documented card code, ignoring case.
+    """Whether ``code`` is a card code used by the API, ignoring case.
 
-    Codes are a rank followed by a suit, with ``0`` for ten (API-06). The
-    Joker codes are undocumented, so they are not card codes here (DEC-02).
+    Standard codes are a rank followed by a suit, with ``0`` for ten
+    (API-06). The Jokers are ``X1`` and ``X2`` (OBS-02, DEC-02).
     """
     code = code.upper()
+    if code in JOKER_SUITS:
+        return True
     return len(code) == 2 and code[0] in RANK_VALUES and code[1] in SUIT_NAMES
 
 
@@ -73,7 +80,7 @@ def validate_pile_name(name: object) -> str:
 
 def validate_card_codes(codes: Iterable[str]) -> tuple[str, ...]:
     """Return the card codes upper-cased, if there is at least one and all
-    are documented codes (API-06, DEC-02).
+    are card codes (API-06, DEC-02).
 
     A single string such as ``"AS,2S"`` is rejected, because iterating it
     would give single characters.
