@@ -498,6 +498,17 @@ bottom, and counts.
 > **Reason:** Jokers are binned instead of placed in a pile (DEC-02). Keeping
 > the check in `rules.py` puts every game rule in one place.
 
+> **Change (2026-11-10):** `DiscardPile` raises `ValueError` if it is created
+> with no cards, keeps its own copy of the list, and has `add(card)` to place
+> the next card on top. `binned` defaults to `()`. `tests/cards.py` adds
+> `make_card(code)` to build cards for game tests, and
+> `tests/unit/game/__init__.py` was added like the other test folders. The
+> rule tests also show an Ace rule replacing the King rule (CH-13).
+>
+> **Reason:** the architecture says a pile only exists once its first card is
+> placed, so an empty pile is a bug. `make_card` is shared with the step 10
+> fakes instead of each test file building cards itself.
+
 **Commit:** `feat(game): add King rule and discard pile model`
 
 ---
