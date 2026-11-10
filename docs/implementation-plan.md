@@ -859,6 +859,27 @@ with a non-zero exit.
 > **Reason:** recommendations from the sanity check (prompt 0008), and my
 > decision on attribution.
 
+> **Change (2026-11-10):** as built:
+>
+> - No `LICENSE` is added.
+> - `docs/interview-guide.md` is kept locally for interview preparation,
+>   and is ignored by Git rather than committed.
+> - The example output in the README comes from live games.
+> - The interview guide's practice changes were tried on a scratch copy, so
+>   it lists the tests each one fails: 23 for the Ace rule and 15 for King or
+>   Queen. Both fail because the tests encode the King rule from the brief.
+>   A 10-card pile limit, the example of a rule that needs more than one
+>   card, also needs the completion check changed, and then fails 13 tests.
+>   The guide also covers adding a rule alongside the King rule, and
+>   changing the binning rule.
+> - The prompt sheet's earlier prompts are left as they were used, apart
+>   from removing repeated blank lines.
+>
+> **Reason:** the brief does not ask for a licence, and without one the code
+> stays under default copyright, so I chose not to add one. The guide is my
+> own preparation notes. Tried changes mean it matches what happens in the
+> interview.
+
 **Commit:** `docs: add usage and interview guide`
 
 ---
@@ -867,4 +888,7 @@ with a non-zero exit.
 
 - Practise one rule change on its own branch, without merging it (CH-13).
 - Run `DECK_API_SMOKE=1 pytest -m smoke` and one live game.
+- Make the repository public, or share it with the interviewers (CH-14),
+  and send them the link (CH-15).
+- Revoke the GitHub access tokens used during development.
 

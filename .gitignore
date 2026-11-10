@@ -1,5 +1,6 @@
-# Supplied challenge material; kept locally only.
+# Supplied challenge material and interview notes; kept locally only.
 *.docx
+docs/interview-guide.md
 
 # Python environments and build output.
 .venv/

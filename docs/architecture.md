@@ -3,8 +3,8 @@
 ## Status and goals
 
 - Status: implementation baseline
-- Last reviewed: 2026-11-09
-- Code status: in progress; see [implementation-plan.md](implementation-plan.md)
+- Last reviewed: 2026-11-10
+- Code status: complete; see [implementation-plan.md](implementation-plan.md)
 - Requirements: see [requirements.md](requirements.md)
 
 The design has two primary goals:
@@ -142,7 +142,6 @@ It does not decide when to create piles or mutate game state directly.
 ├── docs/
 │   ├── architecture.md
 │   ├── implementation-plan.md
-│   ├── interview-guide.md
 │   ├── prompt-sheet.md
 │   └── requirements.md
 ├── src/
@@ -186,25 +185,43 @@ Files are added by the implementation step that needs them, as listed in
 
 ```mermaid
 flowchart TD
-    Start[Create one shuffled deck] --> HasCards{Cards remaining?}
-    HasCards -- no --> Validate[Validate completion invariants]
-    Validate --> Summary[Build final pile report]
-    HasCards -- yes --> Draw[Attempt draw count=1]
-    Draw --> DrawOK{Exactly one valid card confirmed?}
-    DrawOK -- no --> DrawStop[Stop; card identity may be unknown]
-    DrawOK -- yes --> Joker{Joker?}
-    Joker -- yes --> Bin[Bin the card and log it]
+    Start(["Start a game"]) --> Jokers{"Jokers on?"}
+    Jokers -- no --> Create["Create a shuffled deck"]
+    Jokers -- yes --> CreateJokers["Create an unshuffled deck<br>with Jokers, then shuffle it"]
+    Create --> DeckOK{"Deck confirmed<br>by the API?"}
+    CreateJokers --> DeckOK
+    DeckOK -- no --> StopDeck(["Stop: no deck"])
+    DeckOK -- yes --> HasCards{"Cards left<br>in the deck?"}
+    HasCards -- yes --> Draw["Draw one card<br>(count=1)"]
+    Draw --> DrawOK{"Exactly one card<br>returned?"}
+    DrawOK -- no --> StopDraw(["Stop: draw failed"])
+    DrawOK -- yes --> Joker{"Joker?"}
+    Joker -- yes --> Bin["Bin the card"]
+    Joker -- no --> NewPile{"No pile yet, or<br>card matches the rule<br>(a King)?"}
+    NewPile -- yes --> NextPile["Choose the next pile,<br>discard_N"]
+    NewPile -- no --> CurrentPile["Choose the<br>current pile"]
+    NextPile --> Add["Add the card to that<br>pile through the API"]
+    CurrentPile --> Add
+    Add --> AddOK{"Add confirmed<br>by the API?"}
+    AddOK -- no --> StopAdd(["Stop: add failed"])
+    AddOK -- yes --> Record["Put the card on top of<br>the game's copy of the pile"]
+    Record --> HasCards
     Bin --> HasCards
-    Joker -- no --> Decide{No current pile or rule matches?}
-    Decide -- yes --> Reserve[Reserve next discard_N name]
-    Decide -- no --> Current[Use current pile]
-    Reserve --> Add[Attempt remote pile add]
-    Current --> Add
-    Add --> AddOK{Add confirmed?}
-    AddOK -- no --> AddStop[Stop; retain known card and intended pile]
-    AddOK -- yes --> Commit[Append card to confirmed local ledger]
-    Commit --> HasCards
+    HasCards -- no --> Checks{"Completion<br>checks pass?"}
+    Checks -- yes --> Report(["Report each pile:<br>bottom card, top card, count"])
+    Checks -- no --> Broken(["Report the broken checks;<br>no result"])
 ```
+
+Each step is logged as a transaction. Every stop reports the failure and the
+piles the API confirmed before it.
+
+> **Change (2026-11-10):** the diagram was redrawn. Every decision now has a
+> labelled yes and no branch, including creating the deck and the completion
+> checks, which had none. It shows the deck with Jokers, gives each failure
+> its own stop, and uses plain wording in place of terms such as "ledger"
+> and "reserve".
+>
+> **Reason:** the first diagram was unclear and left some outcomes out.
 
 ### State transition ordering
 
