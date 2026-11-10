@@ -98,7 +98,7 @@ def test_cards_out_of_draw_order_fail() -> None:
 def test_a_binned_card_that_was_not_drawn_fails() -> None:
     result, drawn = finished_game()
 
-    with pytest.raises(GameInvariantError, match="binned cards are not"):
+    with pytest.raises(GameInvariantError, match="selected by the binning rule"):
         check(dataclasses.replace(result, binned=(make_card("X1"),)), drawn)
 
 

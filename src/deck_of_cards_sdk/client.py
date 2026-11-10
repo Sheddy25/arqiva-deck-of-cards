@@ -1,6 +1,7 @@
 """Client for the Deck of Cards API (https://deckofcardsapi.com/)."""
 
 from collections.abc import Iterable
+from threading import RLock
 from types import TracebackType
 from typing import Literal, Self
 
@@ -25,6 +26,7 @@ from deck_of_cards_sdk.models import (
 )
 from deck_of_cards_sdk.transport import HttpTransport, QueryParams
 from deck_of_cards_sdk.validation import (
+    validate_bool,
     validate_card_codes,
     validate_count,
     validate_deck_id,
@@ -51,7 +53,8 @@ class DeckOfCardsClient:
     never drawn without placing it, and silently moves a card that is
     already in another pile (OBS-05). :meth:`add_to_pile` checks this record
     first (DEC-06), so only cards drawn through this client can be added to
-    piles.
+    piles. Requests through one client are serialized, so this record cannot
+    be bypassed by concurrent calls.
     """
 
     def __init__(self, transport: HttpTransport | None = None) -> None:
@@ -65,6 +68,7 @@ class DeckOfCardsClient:
         self._owns_transport = transport is None
         self._transport = transport if transport is not None else HttpTransport()
         self._record = CardRecord()
+        self._state_lock = RLock()
 
     def create_deck(
         self,
@@ -85,6 +89,8 @@ class DeckOfCardsClient:
             InvalidArgumentError: if an argument is invalid, or the
                 combination is not documented.
         """
+        shuffled = validate_bool(shuffled, "shuffled")
+        jokers_enabled = validate_bool(jokers_enabled, "jokers_enabled")
         count = validate_count(deck_count)
         if shuffled:
             if jokers_enabled:
@@ -95,14 +101,18 @@ class DeckOfCardsClient:
             params: dict[str, str | int] = {"deck_count": count}
             if cards is not None:
                 params["cards"] = ",".join(validate_card_codes(cards))
-            return parse_deck(self._transport.get_json("deck/new/shuffle/", params))
+            with self._state_lock:
+                deck = parse_deck(self._transport.get_json("deck/new/shuffle/", params))
+            return _require_shuffled(deck, expected=True, operation="create deck")
 
         if count != 1 or cards is not None:
             raise InvalidArgumentError(
                 "deck_count and cards are only documented for a shuffled deck"
             )
         params = {"jokers_enabled": "true"} if jokers_enabled else {}
-        return parse_deck(self._transport.get_json("deck/new/", params))
+        with self._state_lock:
+            deck = parse_deck(self._transport.get_json("deck/new/", params))
+        return _require_shuffled(deck, expected=False, operation="create deck")
 
     def draw_cards(self, deck_id: str, count: int = 1) -> DrawResult:
         """Draw ``count`` cards from the top of the deck (API-02).
@@ -115,17 +125,20 @@ class DeckOfCardsClient:
         """
         path = f"deck/{validate_deck_id(deck_id)}/draw/"
         params = {"count": validate_count(count)}
-        try:
-            data = self._transport.get_json(path, params)
-        except ApiError as error:
-            partial = _partial_draw(error)
-            if partial is None:
-                raise
-            self._record.drawn(partial.deck_id, partial.cards)
-            raise IncompleteDrawError(str(error), partial) from error
-        result = parse_draw(data)
-        self._record.drawn(result.deck_id, result.cards)
-        return result
+        with self._state_lock:
+            try:
+                data = self._transport.get_json(path, params)
+            except ApiError as error:
+                partial = _partial_draw(error, count)
+                if partial is None:
+                    raise
+                self._record.drawn(partial.deck_id, partial.cards)
+                raise IncompleteDrawError(
+                    str(error), partial, body=error.body
+                ) from error
+            result = parse_draw(data)
+            self._record.drawn(result.deck_id, result.cards)
+            return result
 
     def shuffle_deck(self, deck_id: str, *, remaining_only: bool = False) -> Deck:
         """Reshuffle a deck (API-03).
@@ -135,11 +148,17 @@ class DeckOfCardsClient:
         every card, including those in piles, returns to the deck (OBS-05).
         """
         path = f"deck/{validate_deck_id(deck_id)}/shuffle/"
+        remaining_only = validate_bool(remaining_only, "remaining_only")
         params: QueryParams = {"remaining": "true"} if remaining_only else {}
-        deck = parse_deck(self._transport.get_json(path, params))
-        if not remaining_only:
-            self._record.forget(deck.deck_id)
-        return deck
+        with self._state_lock:
+            deck = _require_shuffled(
+                parse_deck(self._transport.get_json(path, params)),
+                expected=True,
+                operation="shuffle deck",
+            )
+            if not remaining_only:
+                self._record.forget(deck.deck_id)
+            return deck
 
     def add_to_pile(
         self, deck_id: str, pile_name: str, cards: Iterable[str]
@@ -155,23 +174,33 @@ class DeckOfCardsClient:
         """
         path = _pile_path(deck_id, pile_name, "add/")
         codes = validate_card_codes(cards)
-        self._record.check_add(deck_id, codes)
-        result = parse_pile_result(
-            self._transport.get_json(path, {"cards": ",".join(codes)})
-        )
-        self._record.added(deck_id, pile_name, codes)
-        return result
+        with self._state_lock:
+            self._record.check_add(deck_id, codes)
+            expected_count = self._record.pile_count(deck_id, pile_name) + len(codes)
+            result = parse_pile_result(
+                self._transport.get_json(path, {"cards": ",".join(codes)})
+            )
+            actual_count = result.piles.get(pile_name)
+            if actual_count is None or actual_count < expected_count:
+                raise ResponseFormatError(
+                    f"add response did not confirm {expected_count} cards in "
+                    f"pile {pile_name!r}, got {actual_count!r}"
+                )
+            self._record.added(deck_id, pile_name, codes)
+            return result
 
     def shuffle_pile(self, deck_id: str, pile_name: str) -> PileResult:
         """Shuffle the cards in a pile (API-08)."""
         path = _pile_path(deck_id, pile_name, "shuffle/")
-        return parse_pile_result(self._transport.get_json(path))
+        with self._state_lock:
+            return parse_pile_result(self._transport.get_json(path))
 
     def list_pile(self, deck_id: str, pile_name: str) -> PileListing:
         """List the cards in a pile (API-09)."""
         name = validate_pile_name(pile_name)
         path = _pile_path(deck_id, name, "list/")
-        return parse_pile_listing(self._transport.get_json(path), name)
+        with self._state_lock:
+            return parse_pile_listing(self._transport.get_json(path), name)
 
     def draw_from_pile(
         self,
@@ -209,9 +238,10 @@ class DeckOfCardsClient:
             params["count"] = validate_count(count)
         if cards is not None:
             params["cards"] = ",".join(validate_card_codes(cards))
-        result = parse_pile_draw(self._transport.get_json(path, params))
-        self._record.drawn_from_pile(result.deck_id, result.cards)
-        return result
+        with self._state_lock:
+            result = parse_pile_draw(self._transport.get_json(path, params))
+            self._record.drawn_from_pile(result.deck_id, result.cards)
+            return result
 
     def return_cards(
         self,
@@ -232,14 +262,16 @@ class DeckOfCardsClient:
             path = _pile_path(deck_id, pile_name, "return/")
         codes = validate_card_codes(cards) if cards is not None else None
         params: QueryParams = {"cards": ",".join(codes)} if codes is not None else {}
-        result = parse_pile_result(self._transport.get_json(path, params))
-        self._record.returned(deck_id, pile_name, codes)
-        return result
+        with self._state_lock:
+            result = parse_pile_result(self._transport.get_json(path, params))
+            self._record.returned(deck_id, pile_name, codes)
+            return result
 
     def close(self) -> None:
         """Close the transport, if this client created it."""
-        if self._owns_transport:
-            self._transport.close()
+        with self._state_lock:
+            if self._owns_transport:
+                self._transport.close()
 
     def __enter__(self) -> Self:
         return self
@@ -253,11 +285,23 @@ class DeckOfCardsClient:
         self.close()
 
 
-def _partial_draw(error: ApiError) -> DrawResult | None:
+def _partial_draw(error: ApiError, requested: int) -> DrawResult | None:
     try:
-        return parse_draw(error.body or {})
+        partial = parse_draw(error.body or {})
     except ResponseFormatError:
         return None
+    if len(partial.cards) >= requested or partial.remaining != 0:
+        return None
+    return partial
+
+
+def _require_shuffled(deck: Deck, *, expected: bool, operation: str) -> Deck:
+    if deck.shuffled is not expected:
+        raise ResponseFormatError(
+            f"{operation} response field 'shuffled' must be {expected}, "
+            f"got {deck.shuffled}"
+        )
+    return deck
 
 
 def _pile_path(deck_id: str, pile_name: str, action: str) -> str:

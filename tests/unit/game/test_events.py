@@ -15,6 +15,12 @@ from card_game.events import (
 LOGGER = "tests.events"
 
 
+def test_card_game_library_has_a_null_handler() -> None:
+    handlers = logging.getLogger("card_game").handlers
+
+    assert any(isinstance(handler, logging.NullHandler) for handler in handlers)
+
+
 def records(caplog: pytest.LogCaptureFixture) -> list[logging.LogRecord]:
     return [record for record in caplog.records if record.name == LOGGER]
 

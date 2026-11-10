@@ -238,14 +238,16 @@ Remote and local operations are intentionally ordered:
 A failed operation stops the game with a `GameInterruptedError` whose outcome
 is one of:
 
-- `rejected`: the API answered and refused the request, for example
-  `"success": false` or an HTTP 404 for an unknown deck; or
+- `rejected`: the API answered and refused the request without a known state
+  change, for example an HTTP 404 for an unknown deck;
+- `partial`: the API refused the full request but confirmed that part of it
+  changed state, as when a deck over-draw still draws the cards left
+  (OBS-04); or
 - `unknown`: a timeout, connection loss, server error or malformed response
   means the remote effect cannot be proved.
 
-A rejected draw can still change state: drawing more cards than remain still
-draws the cards that were left (OBS-04). The game avoids this by drawing one
-card only while cards remain.
+The game avoids a partial over-draw by drawing one card only while cards
+remain.
 
 > **Change (2026-11-10):** the SDK raises `IncompleteDrawError`, a kind of
 > `ApiError`, for an over-draw. It carries the cards the API did draw, and
@@ -256,15 +258,23 @@ card only while cards remain.
 > **Reason:** otherwise those cards would be out of the deck but unknown to
 > the caller and the client (prompt 0008).
 
+> **Change (2026-11-10):** an over-draw has the outcome `partial`, rather
+> than `rejected`.
+>
+> **Reason:** the API rejects the full count but still draws the cards left.
+> Calling that rejected implied no state change and contradicted the cards
+> held by `IncompleteDrawError`.
+
 > **Note (2026-11-10):** an HTTP 5xx status is treated as `unknown`, because
 > a server error does not show whether the request took effect. A draw that
 > succeeds but does not return exactly one card is also `unknown`, because
 > the API is not behaving as documented.
 
-If a draw fails, the engine may know no card code at all. If the draw was
-confirmed but the add was rejected or unknown, the error keeps the known card
-and intended pile. In both cases it stops because retrying could repeat a
-state change. It never states that the card was successfully discarded.
+If a draw fails, the engine may know no card code at all. After a partial draw,
+or if an add was rejected or unknown after its draw was confirmed, the error
+keeps the known card and intended pile. In every case it stops because retrying
+could repeat a state change. It never states that the card was successfully
+discarded.
 
 ### Pile allocation
 
@@ -507,6 +517,14 @@ the API, and before submission.
   > commit hashes.
   >
   > **Reason:** recommendations from the sanity check (prompt 0008).
+
+  > **Change (2026-11-10):** CI now verifies that every installed dependency
+  > is pinned, pins the isolated setuptools build backend, installs and checks
+  > the built wheel, and runs a separate Python 3.14 test job with the latest
+  > supported runtime dependencies.
+  >
+  > **Reason:** the pinned jobs stay reproducible while the extra checks catch
+  > lockfile drift, packaging mistakes and future compatible httpx releases.
 - Raw API response bodies are not included in normal exception messages.
 - The GitHub access tokens used during development must be revoked before
   submission; they are never stored in project files or Git configuration.

@@ -156,4 +156,4 @@ Implementation and tests follow the steps in [implementation-plan.md](implementa
 | API-13, OBS-04 | 5, 11 | `deck_of_cards_sdk/transport.py`, `client.py`, `card_game/engine.py` | `tests/integration/sdk/test_transport.py`, `test_client_pile.py`, `tests/integration/app/test_engine_failures.py` |
 | CH-13 | 9, 10 | `rules.py`, `engine.py` (the `rule` option) | Ace-rule and binning-rule tests in `test_engine.py` |
 | CH-02, CH-12, DEC-04 | All | `docs/prompt-sheet.md` | Reviewed before each commit |
-| CH-11, CH-14, CH-15, DEC-03, DEC-05 | All, 14 | Repository, `.github/workflows/ci.yml`, `constraints.txt` | CI on every pull request |
+| CH-11, CH-14, CH-15, DEC-03, DEC-05 | All, 14 | Repository, `.github/workflows/ci.yml`, `constraints.txt`, `scripts/check_constraints.py` | Pinned and latest-runtime CI jobs; built-wheel smoke check |

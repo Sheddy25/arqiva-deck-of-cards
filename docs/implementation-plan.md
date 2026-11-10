@@ -653,6 +653,13 @@ these cases.
 > not enough. A server error does not show whether the request took effect.
 > A separate test file keeps the happy-path tests short.
 
+> **Change (2026-11-10):** `GameInterruptedError` also uses `partial` when
+> the API refuses the complete operation but confirms a state change. A deck
+> over-draw has this outcome because it still draws the cards that remained.
+>
+> **Reason:** `rejected` implied that no state change was known, which was
+> inconsistent with the cards carried by `IncompleteDrawError` (OBS-04).
+
 **Commit:** `feat(game): handle interrupted games safely`
 
 ---
@@ -824,6 +831,40 @@ with a non-zero exit.
 > leaves out the installer, whose local copy had a known vulnerability that
 > says nothing about this project. Settings in `pyproject.toml` mean local
 > runs match CI. Hash pinning stops a moved tag changing what CI runs.
+
+> **Change (2026-11-10):** the isolated build backend is pinned to
+> `setuptools==84.2.1` in both `pyproject.toml` and `constraints.txt`.
+> Runtime and development requirements keep minimum versions in
+> `pyproject.toml`.
+>
+> **Reason:** `python -m build` creates isolated environments, so the
+> constraints used for the main CI environment did not control setuptools.
+
+> **Change (2026-11-10):** CI runs
+> `python scripts/check_constraints.py` after installation. It fails if an
+> installed dependency other than pip or this project does not have the same
+> exact version in `constraints.txt`, and the script is included in mypy.
+>
+> **Reason:** adding a dependency to `pyproject.toml` without regenerating the
+> constraints would otherwise install it at a floating version and leave it
+> out of the audit input.
+
+> **Change (2026-11-10):** after building, CI creates a clean virtual
+> environment, installs the wheel with the runtime dependency constraints,
+> imports both packages, and runs `card-game --help`.
+>
+> **Reason:** the main tests use the editable source checkout. Installing the
+> artifact proves that the wheel contains both packages and its console entry
+> point works.
+
+> **Change (2026-11-10):** the runtime dependency is declared as
+> `httpx>=0.28,<1`. A separate Python 3.14 CI job keeps the development tools
+> pinned, upgrades the runtime dependencies within that supported range, and
+> runs the tests.
+>
+> **Reason:** the reproducible jobs prove the exact pinned environment, while
+> the latest-runtime job catches a future compatible httpx release that the
+> pins do not exercise.
 
 **Commit:** `ci: add quality checks workflow`
 

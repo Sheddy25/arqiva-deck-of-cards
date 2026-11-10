@@ -28,7 +28,7 @@ STANDARD_DECK = frozenset(rank + suit for rank in "A234567890JQK" for suit in "S
 JOKERS = frozenset({"X1", "X2"})
 
 Operation = Literal["create deck", "shuffle deck", "draw", "add to pile"]
-Outcome = Literal["rejected", "unknown"]
+Outcome = Literal["rejected", "partial", "unknown"]
 
 _logger = logging.getLogger(__name__)
 
@@ -45,9 +45,11 @@ class GameInterruptedError(Exception):
 
     Attributes:
         operation: the call that failed.
-        outcome: ``"rejected"`` if the API answered and refused the call;
-            ``"unknown"`` after a timeout, lost connection, server error or
-            unexpected response, when the call may have taken effect.
+        outcome: ``"rejected"`` if the API refused the call without a known
+            state change; ``"partial"`` if it refused the full operation but
+            still changed state; ``"unknown"`` after a timeout, lost
+            connection, server error or unexpected response, when the call may
+            have taken effect.
         deck_id: the deck, or ``None`` if none was created.
         reason: what went wrong, such as the SDK error's message.
         unplaced: cards drawn but not confirmed in a pile.
@@ -190,6 +192,14 @@ class GameEngine:
             remaining=deck.remaining,
         )
         if not self._jokers:
+            if not deck.shuffled:
+                game = _Progress(deck.deck_id, deck.remaining)
+                raise _interrupted(
+                    "create deck response said the deck was not shuffled",
+                    "create deck",
+                    "unknown",
+                    game,
+                )
             return deck
 
         log.record(
@@ -202,6 +212,14 @@ class GameEngine:
             raise _interrupted(
                 str(error), "shuffle deck", _outcome(error), game
             ) from error
+        if not shuffled.shuffled:
+            game = _Progress(shuffled.deck_id, shuffled.remaining)
+            raise _interrupted(
+                "shuffle deck response said the deck was not shuffled",
+                "shuffle deck",
+                "unknown",
+                game,
+            )
         log.record(
             Event.DECK_SHUFFLED, deck_id=shuffled.deck_id, remaining=shuffled.remaining
         )
@@ -209,13 +227,15 @@ class GameEngine:
 
     def _draw_one(self, game: _Progress, log: TransactionLog) -> Card:
         log.record(Event.OPERATION_STARTED, operation="draw", deck_id=game.deck_id)
+        previous_remaining = game.remaining
+        drawn_codes = {card.code for card in game.drawn}
         try:
             draw = self._client.draw_cards(game.deck_id, 1)
         except IncompleteDrawError as error:
             cards = error.result.cards
             game.drawn.extend(cards)
             raise _interrupted(
-                str(error), "draw", "rejected", game, unplaced=cards
+                str(error), "draw", "partial", game, unplaced=cards
             ) from error
         except DeckOfCardsError as error:
             raise _interrupted(str(error), "draw", _outcome(error), game) from error
@@ -231,6 +251,23 @@ class GameEngine:
                 unplaced=draw.cards,
             )
         card = draw.cards[0]
+        if draw.remaining != previous_remaining - 1:
+            raise _interrupted(
+                f"draw response reported {draw.remaining} cards remaining after "
+                f"drawing one from {previous_remaining}",
+                "draw",
+                "unknown",
+                game,
+                unplaced=(card,),
+            )
+        if card.code in drawn_codes:
+            raise _interrupted(
+                f"draw response returned card {card.code} more than once",
+                "draw",
+                "unknown",
+                game,
+                unplaced=(card,),
+            )
         log.record(
             Event.CARD_DRAWN,
             deck_id=game.deck_id,
@@ -261,6 +298,19 @@ class GameEngine:
                 unplaced=(card,),
                 pile=name,
             ) from error
+
+        expected_count = 1 if starts_pile else game.piles[-1].count + 1
+        actual_count = added.piles.get(name)
+        if actual_count != expected_count:
+            raise _interrupted(
+                f"add response reported {actual_count!r} cards in {name}, "
+                f"expected {expected_count}",
+                "add to pile",
+                "unknown",
+                game,
+                unplaced=(card,),
+                pile=name,
+            )
 
         game.remaining = added.remaining
         if starts_pile:
@@ -301,8 +351,8 @@ def _log_interruption(log: TransactionLog, error: GameInterruptedError) -> None:
 
 
 def _outcome(error: DeckOfCardsError) -> Outcome:
-    """``"rejected"`` if the API answered and refused, so the call did not
-    take effect; ``"unknown"`` if it may have."""
+    """``"rejected"`` if the API refused without a known state change;
+    ``"unknown"`` if it may have changed state."""
     if isinstance(error, HttpStatusError):
         return "rejected" if error.status_code < 500 else "unknown"
     if isinstance(error, InvalidArgumentError | ApiError):
@@ -319,7 +369,11 @@ def _interrupted(
     unplaced: tuple[Card, ...] = (),
     pile: str | None = None,
 ) -> GameInterruptedError:
-    status = "was rejected" if outcome == "rejected" else "had an unknown outcome"
+    status = {
+        "rejected": "was rejected",
+        "partial": "partially succeeded",
+        "unknown": "had an unknown outcome",
+    }[outcome]
     message = f"game interrupted: {operation} {status}: {reason}"
     if unplaced:
         codes = ", ".join(card.code for card in unplaced)
@@ -381,9 +435,12 @@ def _find_problems(
     if len({card.code for card in drawn}) != len(drawn):
         problems.append("a card was drawn more than once")
     if placed != [card for card in drawn if not should_bin_card(card)]:
-        problems.append("the piles do not hold every non-Joker card in draw order")
+        problems.append("the piles do not hold every non-binned card in draw order")
     if list(result.binned) != [card for card in drawn if should_bin_card(card)]:
-        problems.append("the binned cards are not the Jokers drawn")
+        problems.append(
+            "the binned cards do not match the cards selected by the binning "
+            "rule in draw order"
+        )
     if {card.code for card in drawn} != expected_pack:
         problems.append("the cards drawn are not one standard pack")
     if result.cards_remaining != 0:

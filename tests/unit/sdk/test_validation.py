@@ -7,6 +7,7 @@ from deck_of_cards_sdk.exceptions import InvalidArgumentError, ResponseFormatErr
 from deck_of_cards_sdk.validation import (
     is_card_code,
     parse_int_field,
+    validate_bool,
     validate_card_codes,
     validate_count,
     validate_deck_id,
@@ -46,6 +47,17 @@ def test_valid_count_is_returned(count: int) -> None:
 def test_invalid_count_is_rejected(count: object) -> None:
     with pytest.raises(InvalidArgumentError, match="count"):
         validate_count(count)
+
+
+@pytest.mark.parametrize("value", [True, False])
+def test_valid_boolean_is_returned(value: bool) -> None:
+    assert validate_bool(value, "example") is value
+
+
+@pytest.mark.parametrize("value", [0, 1, "false", None])
+def test_invalid_boolean_is_rejected(value: object) -> None:
+    with pytest.raises(InvalidArgumentError, match="example must be true or false"):
+        validate_bool(value, "example")
 
 
 @pytest.mark.parametrize("name", ["discard_1", "player-2", "Pile3"])

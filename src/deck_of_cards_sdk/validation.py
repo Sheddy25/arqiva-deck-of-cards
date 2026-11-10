@@ -69,6 +69,13 @@ def validate_count(count: object) -> int:
     return count
 
 
+def validate_bool(value: object, field: str) -> bool:
+    """Return ``value`` if it is a boolean."""
+    if not isinstance(value, bool):
+        raise InvalidArgumentError(f"{field} must be true or false, got {value!r}")
+    return value
+
+
 def validate_pile_name(name: object) -> str:
     """Return ``name`` if it is non-empty letters, digits, ``_`` and ``-``."""
     if not isinstance(name, str) or not _PILE_NAME.fullmatch(name):

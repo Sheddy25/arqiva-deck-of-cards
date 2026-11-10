@@ -38,6 +38,9 @@ jobs:
       - name: Install pinned dependencies
         run: python -m pip install -c constraints.txt -e ".[dev]"
 
+      - name: Verify every installed dependency is pinned
+        run: python scripts/check_constraints.py
+
       - name: Check formatting
         run: ruff format --check .
 
@@ -45,7 +48,7 @@ jobs:
         run: ruff check .
 
       - name: Type check
-        run: mypy src tests
+        run: mypy src tests scripts
 
       - name: Test with coverage
         run: pytest --cov
@@ -55,3 +58,36 @@ jobs:
 
       - name: Build package
         run: python -m build
+
+      - name: Install and smoke-test the wheel
+        run: |
+          python -m venv /tmp/arqiva-wheel-test
+          /tmp/arqiva-wheel-test/bin/python -m pip install -c constraints.txt dist/*.whl
+          /tmp/arqiva-wheel-test/bin/python -c "import card_game, deck_of_cards_sdk"
+          /tmp/arqiva-wheel-test/bin/card-game --help
+
+  latest-runtime:
+    name: Latest runtime dependencies (Python 3.14)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            constraints.txt
+
+      - name: Install pinned development tools
+        run: python -m pip install -c constraints.txt -e ".[dev]"
+
+      - name: Upgrade within the supported runtime dependency range
+        run: python -m pip install --upgrade --upgrade-strategy eager -e .
+
+      - name: Test with latest runtime dependencies
+        run: pytest

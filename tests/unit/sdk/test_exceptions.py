@@ -7,11 +7,14 @@ from deck_of_cards_sdk.exceptions import (
     ConnectionFailedError,
     DeckOfCardsError,
     HttpStatusError,
+    IncompleteDrawError,
     InvalidArgumentError,
     RequestTimeoutError,
     ResponseFormatError,
     TransportError,
 )
+from deck_of_cards_sdk.models import DrawResult
+from tests.cards import make_card
 
 
 @pytest.mark.parametrize(
@@ -24,6 +27,7 @@ from deck_of_cards_sdk.exceptions import (
         HttpStatusError,
         ResponseFormatError,
         ApiError,
+        IncompleteDrawError,
     ],
 )
 def test_every_error_is_a_deck_of_cards_error(error_type: type[Exception]) -> None:
@@ -42,3 +46,14 @@ def test_http_status_error_keeps_the_status_code() -> None:
 
     assert error.status_code == 404
     assert str(error) == "HTTP 404: Not Found"
+
+
+def test_incomplete_draw_error_keeps_the_result_and_body() -> None:
+    result = DrawResult("abc123", (make_card("AS"),), 0)
+    body: dict[str, object] = {"success": False, "remaining": 0}
+
+    error = IncompleteDrawError("not enough cards", result, body=body)
+
+    assert isinstance(error, ApiError)
+    assert error.result is result
+    assert error.body is body
