@@ -144,4 +144,4 @@ Planned implementation and tests follow [implementation-plan.md](implementation-
 | API-13, OBS-04 | 5, 11 | `deck_of_cards_sdk/transport.py`, `card_game/engine.py` | `tests/integration/sdk/test_transport.py`, `test_engine.py` |
 | CH-13 | 9, 15 | `rules.py`, `docs/interview-guide.md` | Ace-rule test in `test_engine.py` |
 | CH-02, CH-12, DEC-04 | All | `docs/prompt-sheet.md` | Reviewed before each commit |
-| CH-11, CH-14, CH-15, DEC-03, DEC-05 | All, 14 | Repository, `.github/workflows/ci.yml` | CI on every pull request |
+| CH-11, CH-14, CH-15, DEC-03, DEC-05 | All, 14 | Repository, `.github/workflows/ci.yml`, `constraints.txt` | CI on every pull request |
