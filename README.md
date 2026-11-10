@@ -6,9 +6,9 @@ at a time into face-down discard piles, and every King starts a new pile.
 
 > **Status:** in progress. The SDK's card model, validation, errors, HTTP
 > transport, deck operations, pile operations and live smoke test are done.
-> The game's rules, pile model, engine, failure handling and transaction
-> logging are done, and CI checks every pull request; the command-line app
-> is next.
+> The game's rules, pile model, engine, failure handling, transaction
+> logging and command-line app are done, and CI checks every pull request;
+> the final documentation is next.
 > See [the implementation plan](docs/implementation-plan.md).
 
 ## Layout
@@ -40,6 +40,19 @@ python -m pip install -e ".[dev]"
 
 To install the exact tool versions CI uses, add `-c constraints.txt` to the
 install command.
+
+## Play the game
+
+```bash
+card-game                         # or: python -m card_game
+card-game --jokers                # include the two Jokers, which are binned
+card-game --verbose               # also log every transaction, with the cards
+card-game --log-file game.jsonl   # append every transaction as JSON Lines
+```
+
+Cards are shown face down while they are dealt; the final table shows the
+bottom card, top card and count of each pile. The game calls the live API,
+so it needs an internet connection.
 
 ## Checks
 

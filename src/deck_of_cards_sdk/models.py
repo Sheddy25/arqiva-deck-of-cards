@@ -14,6 +14,9 @@ from deck_of_cards_sdk.validation import (
     parse_int_field,
 )
 
+CARD_BACK_IMAGE = "https://deckofcardsapi.com/static/img/back.png"
+"""The image of a card's back, for showing a card face down (API-12)."""
+
 
 @dataclass(frozen=True)
 class Card:
@@ -42,6 +45,13 @@ class Card:
     def is_joker(self) -> bool:
         """Whether this card is one of the two Jokers."""
         return self.code in JOKER_SUITS
+
+    @property
+    def name(self) -> str:
+        """A readable name, such as ``"King of Hearts"`` or ``"Red Joker"``."""
+        if self.is_joker:
+            return f"{self.suit.capitalize()} Joker"
+        return f"{self.value.capitalize()} of {self.suit.capitalize()}"
 
 
 def parse_card(data: Mapping[str, object]) -> Card:

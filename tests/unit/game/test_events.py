@@ -5,7 +5,12 @@ import logging
 
 import pytest
 
-from card_game.events import Event, JsonLinesFormatter, TransactionLog
+from card_game.events import (
+    ConsoleFormatter,
+    Event,
+    JsonLinesFormatter,
+    TransactionLog,
+)
 
 LOGGER = "tests.events"
 
@@ -73,6 +78,24 @@ def test_events_are_logged_at_their_level(
     TransactionLog(logging.getLogger(LOGGER)).record(event)
 
     assert records(caplog)[0].levelno == level
+
+
+def test_the_console_formatter_shows_cards_only_when_asked(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.DEBUG, LOGGER)
+    log = TransactionLog(logging.getLogger(LOGGER))
+    log.record(Event.CARD_DRAWN, deck_id="abc123", card="KH")
+    log.record(Event.GAME_INTERRUPTED, unplaced=["KH", "2S"])
+    drawn, interrupted = records(caplog)
+
+    assert ConsoleFormatter().format(drawn) == "INFO #1 card.drawn deck_id=abc123"
+    assert ConsoleFormatter(show_cards=True).format(drawn) == (
+        "INFO #1 card.drawn deck_id=abc123 card=KH"
+    )
+    assert ConsoleFormatter(show_cards=True).format(interrupted) == (
+        "ERROR #2 game.interrupted unplaced=KH,2S"
+    )
 
 
 def test_the_json_formatter_writes_one_object_with_the_cards(

@@ -479,3 +479,89 @@ outputs.
 > messages, so the console stays face down. It added `operation.started`
 > and `deck.shuffled` events, with change notes. A live game logged 216
 > transactions to the console and the audit file.
+
+## Prompt 0010 — Write the command-line app tests
+
+```text
+Role
+Act as a senior Python software engineer writing tests for a command-line
+application.
+
+Context
+Step 13 of docs/implementation-plan.md adds src/card_game/cli.py, the
+command-line app for the discard game. Its main(argv, client_factory)
+function parses the options --jokers, --verbose and --log-file PATH,
+attaches logging handlers for one game, runs GameEngine, prints the report
+and returns an exit code. A progress handler turns the engine's transaction
+events into face-down progress lines, and src/card_game/__main__.py runs
+main for python -m card_game. tests/fakes.py has a FakeCardClient that
+deals a fixed sequence and can fail chosen calls. The brief asks for cards
+to be discarded face down (CH-06), each transaction to be logged (CH-09),
+and the top card, bottom card and count of each pile to be reported
+(CH-10).
+
+Task
+1. Write tests/unit/game/test_cli.py, running main with the fake client
+   through client_factory, with these tests:
+   1. A completed game exits 0 and reports each pile's name, bottom card,
+      top card and count, then the total discarded and the cards
+      remaining.
+   2. The progress lines keep every card face down: the card-back line,
+      the deck created line, one line per card with a new-pile marker, and
+      no card named before the report.
+   3. A game with --jokers creates a deck with Jokers, shuffles it, bins
+      both Jokers, and reports the cards binned.
+   4. An interrupted game exits 1 and prints the error and the piles
+      confirmed so far.
+   5. A game stopped before any pile was confirmed shows no table.
+   6. A failed completion check exits 1.
+   7. Cancelling the game exits 130.
+   8. --verbose logs every transaction, with the cards, to standard error.
+   9. --log-file writes every transaction as JSON Lines.
+   10. A log file that cannot be opened exits 1.
+   11. The logging handlers and level are restored after a game.
+   12. Invalid options exit 2.
+   13. python -m card_game runs the app.
+2. At the end, suggest any missing coverage: behaviour these tests do not
+   check, even where every line runs.
+
+Constraints
+- Make no network calls; use the fake client.
+- Use pytest's capsys and tmp_path fixtures, not real files or the real
+  console.
+- Check exact output where the brief depends on it, such as the table and
+  the face-down lines.
+- Keep each test independent, including the state of the logging module.
+
+Output
+The test file as a reviewable diff, then a list of the missing coverage,
+ordered by risk, each with the test that would close it.
+
+Verification
+I will run ruff, mypy and pytest with coverage, decide which of the
+suggested gaps to close, and play one live game with card-game.
+```
+
+> **Outcome (2026-11-10):** the AI wrote the 13 tests in `test_cli.py`,
+> and also a `ConsoleFormatter` test in `tests/unit/game/test_events.py` to
+> cover its default, face-down mode, bringing coverage to 100%. At the end it
+> suggested this missing coverage, ordered by risk:
+>
+> 1. No test checks that the client is closed after a game, including after
+>    a failure, because `contextlib.nullcontext` cannot show it.
+> 2. Logging is only shown to be restored after a successful game, not
+>    after an interrupted or cancelled one.
+> 3. No test shows that `--log-file` appends to an existing file rather
+>    than replacing it, or that an interrupted game's file ends with
+>    `operation.failed` and `game.interrupted`.
+> 4. No test checks that `main` uses `DeckOfCardsClient` when no
+>    `client_factory` is given.
+> 5. No test shows what `--verbose` prints for an interrupted game.
+> 6. The installed `card-game` command is not tested, and no smoke test
+>    plays a live game through the app.
+>
+> I chose to close gaps 1 to 5 now, which added tests for the client being
+> closed, logging being restored after an interrupted or cancelled game, the
+> log file being appended to and recording a failure, the default client,
+> and `--verbose` on a failure. Gap 6 stays open; a live game is played by
+> hand before the interview instead.

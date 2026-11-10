@@ -148,7 +148,7 @@ Planned implementation and tests follow [implementation-plan.md](implementation-
 | CH-03 | 10, 13 | `card_game/engine.py`, `ports.py`, `cli.py` | `tests/integration/app/` |
 | CH-04, INT-01 | 10 | `engine.py` | `tests/integration/app/test_engine.py` |
 | CH-05, INT-02 | 10 | `engine.py` | `tests/integration/app/test_engine.py` |
-| CH-06, INT-05, API-12 | 10, 13 | `engine.py`, `cli.py` | `test_engine.py`, `tests/unit/game/test_cli.py` |
+| CH-06, INT-05, API-12 | 10, 13 | `engine.py`, `cli.py`, `deck_of_cards_sdk/models.py` (`CARD_BACK_IMAGE`) | `test_engine.py`, `tests/unit/game/test_cli.py` |
 | CH-07, CH-08, INT-03 | 9, 10 | `card_game/rules.py`, `engine.py` | `tests/unit/game/test_rules.py`, `test_engine.py` |
 | CH-09, INT-06 | 12 | `card_game/events.py`, `engine.py` | `tests/unit/game/test_events.py`, `tests/integration/app/test_engine_logging.py` |
 | CH-10, INT-04, INT-07 | 9, 13 | `card_game/models.py`, `cli.py` | `tests/unit/game/test_models.py`, `test_cli.py` |

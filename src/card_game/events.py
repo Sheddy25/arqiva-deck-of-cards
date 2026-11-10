@@ -68,6 +68,29 @@ class TransactionLog:
         )
 
 
+class ConsoleFormatter(logging.Formatter):
+    """Formats a record as its level and message for a console.
+
+    With ``show_cards``, a transaction record also shows the cards in its
+    context, for diagnosis.
+    """
+
+    def __init__(self, *, show_cards: bool = False) -> None:
+        super().__init__()
+        self._show_cards = show_cards
+
+    def format(self, record: logging.LogRecord) -> str:
+        line = f"{record.levelname} {record.getMessage()}"
+        if not self._show_cards:
+            return line
+        context: dict[str, object] = getattr(record, "context", {})
+        for key in sorted(CARD_FIELDS & context.keys()):
+            value = context[key]
+            shown = ",".join(value) if isinstance(value, list) else value
+            line += f" {key}={shown}"
+        return line
+
+
 class JsonLinesFormatter(logging.Formatter):
     """Formats each record as one JSON object, for an audit file.
 

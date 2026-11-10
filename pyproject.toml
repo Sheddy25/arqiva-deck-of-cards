@@ -20,6 +20,9 @@ dev = [
     "ruff>=0.17",
 ]
 
+[project.scripts]
+card-game = "card_game.cli:main"
+
 [tool.setuptools.packages.find]
 where = ["src"]
 

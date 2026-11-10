@@ -122,6 +122,16 @@ The CLI is a composition root and renderer. It may show:
 
 It does not decide when to create piles or mutate game state directly.
 
+> **Change (2026-11-10):** as built, the CLI attaches logging handlers for
+> one game and removes them afterwards. A progress handler turns the
+> engine's transaction events into face-down progress lines, so the engine
+> knows nothing about the console. The card-back image URL (API-12) is shown
+> once before dealing. The final table names each card, such as `King of
+> Hearts`, and the binned count is shown as `Cards binned: N (names)`. After
+> an interruption it prints the error and the piles confirmed so far.
+>
+> **Reason:** see step 13 of the implementation plan.
+
 ## Planned repository layout
 
 ```text
