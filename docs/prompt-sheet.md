@@ -283,3 +283,137 @@ reliably.
 > never drawn reports success but leaves the card in the deck, creating an
 > empty pile. OBS-05 has a change note for this, and the guard (DEC-06)
 > stays, because a caller would otherwise believe the card had been placed.
+
+## Prompt 0007 — Build a fake card client for engine tests
+
+```text
+Role
+Act as a senior Python software engineer writing tests for a game engine.
+
+Context
+Step 10 of docs/implementation-plan.md adds the game engine:
+src/card_game/engine.py plays a shuffled deck one card at a time, starting a
+new discard pile at each King and binning Jokers, through the CardClient
+protocol in src/card_game/ports.py. The real client, DeckOfCardsClient, calls
+the live API, and its shuffled decks deal cards in a random order, so it
+cannot test specific sequences such as a King drawn first or last.
+docs/requirements.md lists the rules the engine must meet (CH-04 to CH-08,
+INT-01 to INT-04, INT-07, DEC-02), and docs/architecture.md lists the
+completion checks.
+
+Task
+1. Write tests/fakes.py with a FakeCardClient that satisfies CardClient
+   without inheriting from the SDK client. It should:
+   - deal cards in a fixed order given as card codes;
+   - report the cards remaining after each draw and add;
+   - record every call, so tests can check that cards are drawn and added
+     one at a time;
+   - record the piles it was asked to add to, so tests can compare them with
+     the engine's own piles.
+2. Write tests/integration/app/test_engine.py using the fake: a full
+   52-card game, a King drawn first, a King drawn last, consecutive Kings,
+   cards before the first King, draws always using count=1, an Ace rule
+   changing the pile boundaries, and Jokers drawn first, last and between
+   Kings in a 54-card game.
+3. Test each completion check on its own, with finished games that are
+   deliberately broken.
+4. Update docs/implementation-plan.md, docs/architecture.md,
+   docs/requirements.md and README.md to match, adding a change note under
+   the plan step wherever the work differs from the plan.
+
+Constraints
+- Keep the fake simple and predictable; do not copy the SDK's pile-add
+  guard (DEC-06) into it.
+- Build full decks in a known order, so the completion checks run in every
+  engine test.
+- Make no network calls in these tests.
+- Keep the original plan wording; record changes with dated change notes and
+  reasons.
+
+Output
+The fake, the tests and the documentation changes as a reviewable diff, and a
+short summary of each change.
+
+Verification
+I will run ruff, mypy and pytest, check the game package coverage, and play
+one live game to confirm the engine also works with the real client.
+```
+
+> **Outcome (2026-11-10):** `FakeCardClient` deals a fixed sequence, records
+> every call and the piles added to, and does not copy the SDK guard. The
+> engine tests build full decks in a known order, and
+> `tests/unit/game/test_invariants.py` tests each completion check with a
+> broken game. The plan, architecture, requirements and README were updated,
+> including the `jokers` option chosen during this step.
+
+## Prompt 0008 — Sanity-check the project against the brief and the role
+
+```text
+Role
+Act as a senior software engineer and technical interviewer for an Arqiva
+Software Engineer role, reviewing a candidate's take-home challenge.
+
+Context
+The challenge brief (Deck of Cards - Technical Challenge.docx) asks for an
+SDK for https://deckofcardsapi.com/ and an application that uses it: get a
+new shuffled pack, take cards from the top one by one, discard them face
+down one by one, start a new pile at each King with the King as its first
+card, log each transaction, and report the top card, bottom card and count
+of each pile. It also asks the candidate to record AI prompts, make the
+solution stand out, demonstrate it, and make ad hoc code changes to model new
+rules in the interview. Deck_of_Cards_API_Developer_Reference.docx describes
+the API. Arqiva_Software_Engineer_Beginner_to_Interview_Master_Pack.docx
+describes the skills the role needs: the software lifecycle, Python, APIs,
+testing, CI/CD, code review, observability, troubleshooting, and
+AI-assisted engineering with human ownership.
+
+The repository has a finished SDK (src/deck_of_cards_sdk/), a game rules
+module, pile model and engine (src/card_game/), tests in tests/, and
+docs/requirements.md, docs/architecture.md, docs/implementation-plan.md and
+docs/prompt-sheet.md. Steps 11 to 15 of the plan (failure handling, logging,
+command-line app, CI and documentation) are not built yet.
+
+Task
+Review the whole repository and answer each question with evidence:
+1. Brief: does the work meet every requirement in the brief and the API
+   reference? What is missing or at risk?
+2. Scope: has the work gone too far? Name anything that adds complexity
+   without serving the brief, the demonstration or the role, and say
+   whether to keep, simplify or remove it.
+3. Efficiency: is the code as efficient as it needs to be, in API calls,
+   algorithms and memory? Point out wasted work.
+4. Infrastructure: are the tooling, packaging, dependency management, test
+   layout, Git workflow and planned CI sound and proportionate?
+5. Engineering principles: does the code show single responsibility,
+   separation of concerns, DRY without over-abstraction, clear naming,
+   type safety, safe failure handling and meaningful tests?
+6. Role skills: does the work demonstrate the skills in the interview pack?
+   Which are shown well, which are weak, and which could the remaining
+   steps show?
+
+Constraints
+- Suggest only; do not edit any file.
+- Cite the file and line, or the brief's wording, for each finding.
+- Judge against the brief and the role, not against an ideal of unlimited
+  scope; prefer removing complexity to adding it.
+- Be candid about weaknesses, and also say what is already done well.
+
+Output
+Findings for each question, ordered by severity (risk, improvement,
+nitpick), each with a concrete recommendation; then a short list of the
+changes I should make before the interview, in priority order.
+
+Verification
+I will check each finding against the code and the briefs, decide which to
+apply, and re-run ruff, mypy and pytest after any change.
+```
+
+> **Outcome (2026-11-10):** the review found the work meets the brief so far
+> without going too far, but logging (CH-09) and the pile report (CH-10) are
+> not built yet, CI is missing, and the guard (DEC-06) is the most debatable
+> design choice. It also found that changing the binning rule, a likely
+> interview change, made the completion check fail, because the check
+> required the binned cards to be exactly the Jokers. I chose to fix only
+> that now: the check compares the cards drawn with one standard pack, and a
+> test bins the 2s to prove a new binning rule needs no other change. The
+> other findings stay as recommendations for later steps.

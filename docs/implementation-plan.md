@@ -559,6 +559,35 @@ touching other code.
 > does not keep the order of cards in a pile, so the game still needs its
 > own.
 
+> **Change (2026-11-10):** `GameEngine` takes `jokers: bool = False`. When
+> true, it creates an unshuffled deck with `jokers_enabled=True` and then
+> calls `shuffle_deck`, so `CardClient` also lists `shuffle_deck`. A default
+> game still uses one standard shuffled pack.
+>
+> **Reason:** without it, a real game could never include Jokers, so binning
+> them (DEC-02) could only happen in tests. The API documents Jokers only for
+> an unshuffled deck (API-04), then reshuffling it (API-03).
+
+> **Change (2026-11-10):** the invariants are in a separate function,
+> `check_invariants`, which raises `GameInvariantError` listing every rule
+> broken. It checks the deck size (52, or 54 with Jokers), that every card
+> was drawn once, that the piles hold every non-Joker card in draw order and
+> the binned cards are the Jokers drawn, that the cards drawn are one
+> standard pack, zero remaining, pile names from `discard_1` upwards, and the
+> rule boundaries. The pack check looks at the cards drawn, not at which ones
+> were binned, so changing `should_bin_card` needs no other change (CH-13). `tests/unit/game/test_invariants.py` tests each check, and
+> `tests/integration/app/__init__.py` was added. `FakeCardClient` also
+> records the piles it was asked to add to, so the tests can compare them
+> with the engine's piles (prompt 0007).
+>
+> **Reason:** a separate function can be tested with broken games that the
+> engine itself would never produce. "Every rule-matching card at the bottom
+> of a pile" and "total equals cards drawn" follow from checking the piles
+> against the draw order, and a pile cannot be empty (step 9).
+
+> **Note (2026-11-10):** the engine still assumes each draw returns exactly
+> one card, and does not catch SDK errors. Step 11 adds both.
+
 **Commit:** `feat(game): implement discard engine`
 
 ---
@@ -580,6 +609,20 @@ touching other code.
 **Tests:** in `test_engine.py`, a draw failure, an add rejection, an add
 timeout, a draw returning zero or two cards, and no success result in any of
 these cases.
+
+> **Change (2026-11-10):** before adding error handling, this step also:
+>
+> - freezes `GameResult`'s piles when the game ends, so the result cannot be
+>   changed;
+> - splits `GameEngine.run()` into small methods for drawing and placing a
+>   card;
+> - defines the pack order once for the tests;
+> - moves `_CardRecord` out of `client.py` into its own SDK module;
+> - keeps the cards an over-draw did draw: the error carries them, and the
+>   card record includes them (OBS-04).
+>
+> **Reason:** recommendations from the sanity check (prompt 0008). Cleaning
+> the engine first keeps it readable once every call has error handling.
 
 **Commit:** `feat(game): handle interrupted games safely`
 
@@ -645,6 +688,16 @@ with a non-zero exit.
 > **Reason:** the user sees each Joker being binned and the total at the end
 > (DEC-02).
 
+> **Change (2026-11-10):** a `--jokers` option plays with the two Jokers, by
+> passing `jokers=True` to `GameEngine`. Without it, the game uses one
+> standard pack.
+>
+> **Reason:** the engine gained the `jokers` option in step 10, so a real
+> game can include Jokers and show them being binned.
+
+> **Note (2026-11-10):** if the output shows a card back, add the card-back
+> image URL (API-12) to the SDK as a constant in this step.
+
 **Commit:** `feat(cli): add game demonstration`
 
 ---
@@ -665,6 +718,14 @@ with a non-zero exit.
 > **Note (2026-11-09):** `python -m build` needs the `build` package, which
 > is not in the `dev` dependencies. Add it to `dev` in this step.
 
+> **Change (2026-11-10):** this step is done straight after step 10, before
+> step 11. The workflow tests on Python 3.12 and 3.14, adds a `pip-audit`
+> dependency check, and installs pinned versions of the dev tools.
+>
+> **Reason:** the sanity check (prompt 0008) found CI was the biggest gap
+> against the role. Doing it first means every later pull request is
+> checked, and pinned tools make CI results repeatable.
+
 **Commit:** `ci: add quality checks workflow`
 
 ---
@@ -682,6 +743,22 @@ with a non-zero exit.
 - **`docs/prompt-sheet.md`**: check that every prompt used is recorded.
 - **`docs/requirements.md`**: check every requirement is traced to the
   final code and tests.
+
+> **Change (2026-11-10):** this step also:
+>
+> - adds an introduction to the prompt sheet and the attribution: the bulk
+>   of the code is credited to me, and the AI is credited with the work each
+>   prompt produced;
+> - adds to the interview guide: a short story of how AI output was checked
+>   and corrected, what to change for rules that need more than one card to
+>   decide (such as a pile-size limit), and the reasoning behind the pile-add
+>   guard (DEC-06);
+> - adds a `LICENSE`, and adds to "Before the interview": make the
+>   repository public or share it (CH-14), and revoke the access tokens used
+>   during development.
+>
+> **Reason:** recommendations from the sanity check (prompt 0008), and my
+> decision on attribution.
 
 **Commit:** `docs: add usage and interview guide`
 
