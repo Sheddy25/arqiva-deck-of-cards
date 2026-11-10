@@ -13,6 +13,7 @@ from deck_of_cards_sdk.exceptions import (
     TransportError,
 )
 from deck_of_cards_sdk.models import (
+    CARD_BACK_IMAGE,
     Card,
     Deck,
     DrawResult,
@@ -23,6 +24,7 @@ from deck_of_cards_sdk.models import (
 from deck_of_cards_sdk.transport import HttpTransport
 
 __all__ = [
+    "CARD_BACK_IMAGE",
     "ApiError",
     "Card",
     "ConnectionFailedError",

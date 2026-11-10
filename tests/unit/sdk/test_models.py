@@ -77,6 +77,19 @@ def test_parses_jokers(code: str, suit: str) -> None:
     assert not card.is_king
 
 
+@pytest.mark.parametrize(
+    ("code", "value", "suit", "name"),
+    [
+        ("KH", "KING", "HEARTS", "King of Hearts"),
+        ("0S", "10", "SPADES", "10 of Spades"),
+        ("AD", "ACE", "DIAMONDS", "Ace of Diamonds"),
+        ("X2", "JOKER", "RED", "Red Joker"),
+    ],
+)
+def test_cards_have_readable_names(code: str, value: str, suit: str, name: str) -> None:
+    assert parse_card(card_data(code, value, suit)).name == name
+
+
 def test_lower_case_code_is_normalised() -> None:
     assert parse_card(card_data("ks", "KING", "SPADES")).code == "KS"
 

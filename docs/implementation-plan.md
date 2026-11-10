@@ -753,6 +753,30 @@ with a non-zero exit.
 > **Note (2026-11-10):** if the output shows a card back, add the card-back
 > image URL (API-12) to the SDK as a constant in this step.
 
+> **Change (2026-11-10):** as built:
+>
+> - The SDK gains `CARD_BACK_IMAGE` (API-12), which the app prints once
+>   before dealing, and `Card.name`, such as `King of Hearts`, which the
+>   final table uses.
+> - The progress lines come from a logging handler that reads the engine's
+>   transaction events (step 12), so the engine is unchanged. A card that
+>   starts a pile shows `[face down, new pile]`.
+> - `client_factory` returns a context manager, so the app closes the
+>   client; tests pass `contextlib.nullcontext(FakeCardClient(...))`.
+> - `--verbose` logs every transaction, with card codes, to standard error
+>   using `ConsoleFormatter` in `events.py`. `--log-file` appends to the
+>   file.
+> - The report's last line is `Cards binned: N (names)`, shown when any card
+>   was binned, in place of `Jokers binned: N`.
+> - An interrupted game prints the error to standard error and the piles
+>   confirmed before it stopped. Exit codes are 0 for a completed game, 1
+>   for an interrupted game, a failed completion check or a log file that
+>   cannot be opened, 2 for invalid options, and 130 when cancelled.
+>
+> **Reason:** reading the events keeps presentation out of the engine.
+> `Cards binned` stays correct if the binning rule changes (CH-13). Showing
+> the confirmed piles tells the user what the API holds after a failure.
+
 **Commit:** `feat(cli): add game demonstration`
 
 ---
