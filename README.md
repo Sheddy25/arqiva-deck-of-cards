@@ -6,8 +6,8 @@ at a time into face-down discard piles, and every King starts a new pile.
 
 > **Status:** in progress. The SDK's card model, validation, errors, HTTP
 > transport, deck operations, pile operations and live smoke test are done.
-> The game's rules and pile model are done; the game engine is next. See
-> [the implementation plan](docs/implementation-plan.md).
+> The game's rules, pile model and engine are done; failure handling is next.
+> See [the implementation plan](docs/implementation-plan.md).
 
 ## Layout
 
@@ -22,7 +22,7 @@ docs/
 └── prompt-sheet.md      # AI prompts used
 tests/
 ├── unit/                # Fast tests of single modules
-├── integration/         # SDK tests over a mock HTTP transport
+├── integration/         # SDK over a mock HTTP transport; game over a fake client
 └── smoke/               # Opt-in checks against the live API
 ```
 

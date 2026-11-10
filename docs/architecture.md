@@ -93,8 +93,9 @@ The game consumes stable public card/deck models from the SDK but does not
 import SDK transport internals. `ports.py` narrows the dependency to only:
 
 1. create one shuffled deck;
-2. draw cards; and
-3. add cards to a pile.
+2. shuffle a deck, used only for a game with Jokers;
+3. draw cards; and
+4. add cards to a pile.
 
 A test fake can satisfy this protocol without inheriting from the concrete SDK
 client.
@@ -264,6 +265,9 @@ the live API, `X1` and `X2` with value `JOKER`, and returns them as cards with
 bins every Joker it draws: it is never placed in a pile, a `card.binned`
 transaction is logged, and the final report shows how many were binned. The
 game uses a standard shuffled deck, so Jokers only appear if they are enabled.
+They are enabled with the engine's `jokers` option (`--jokers` on the command
+line): the engine creates an unshuffled deck with Jokers, then shuffles it,
+because the API documents Jokers only for an unshuffled deck (API-04).
 
 ### Game models
 
@@ -331,6 +335,11 @@ For a standard 52-card deck, integrity checks additionally require:
 - 52 cards were drawn and confirmed in piles;
 - pile counts total 52; and
 - all four standard Kings were present.
+
+In a game with Jokers, the deck holds 54 cards, including the two Jokers. The
+pack is checked against the cards drawn, not against which cards were binned,
+so a new binning rule needs no change to the checks. `check_invariants` in `engine.py` runs these checks and raises
+`GameInvariantError` listing every one that fails.
 
 With the default King rule, active-rule validation therefore also proves that
 every King is a pile bottom. A substituted Ace rule still checks that the deck

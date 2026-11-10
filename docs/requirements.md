@@ -114,6 +114,13 @@ say.
 > observed behaviour (OBS-02), because the reference does not document Joker
 > codes.
 
+> **Change to DEC-02 (2026-11-10):** Jokers are enabled with the game's
+> `jokers` option (`--jokers` on the command line). The game then creates an
+> unshuffled deck with Jokers and shuffles it (API-03, API-04).
+>
+> **Reason:** without an option, a real game could never include Jokers, so
+> binning them could only happen in tests.
+
 ## Traceability
 
 Planned implementation and tests follow [implementation-plan.md](implementation-plan.md).
