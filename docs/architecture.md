@@ -413,6 +413,18 @@ face-down marker. An explicit verbose or JSONL audit option may include card
 codes for diagnosis. Output tests ensure normal mode does not reveal the draw
 sequence before the final required summary.
 
+> **Change (2026-11-10):** as built in `card_game/events.py`, a
+> `TransactionLog` numbers one game's events from 1. Two events were added:
+> `operation.started`, the attempt logged at `DEBUG` before each API call,
+> and `deck.shuffled` for a Joker deck. Failures are logged at `ERROR`, the
+> rest at `INFO`. Each log record carries the event, sequence and context
+> as attributes. Card codes stay in the context and out of the message, so
+> any plain formatter keeps the cards face down, while
+> `JsonLinesFormatter` writes the full context, including card codes, as
+> one JSON object per line.
+>
+> **Reason:** see step 12 of the implementation plan (prompt 0009).
+
 ## Test architecture
 
 Three test boundaries provide useful confidence without relying on the live

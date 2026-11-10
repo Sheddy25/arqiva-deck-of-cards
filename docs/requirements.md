@@ -99,6 +99,12 @@ say.
 | INT-07 | Top and bottom cards are tracked from the order in which pile adds were confirmed, because the reference does not define the order of the pile list response. | CH-10, API-09 |
 | INT-08 | If an API call fails, the game stops and reports what happened. Calls that change state are not retried automatically, because a retry could draw or move a card twice. | CH-09 |
 
+> **Change to INT-06 (2026-11-10):** the transactions also include shuffling
+> a Joker deck, and the attempt before each API call, logged at `DEBUG`.
+>
+> **Reason:** the shuffle is an API call that changes the deck, and logging
+> each attempt shows what was being tried if a call fails (plan step 12).
+
 ## Owner decisions (`DEC`)
 
 | ID | Decision | Relates to |
@@ -144,7 +150,7 @@ Planned implementation and tests follow [implementation-plan.md](implementation-
 | CH-05, INT-02 | 10 | `engine.py` | `tests/integration/app/test_engine.py` |
 | CH-06, INT-05, API-12 | 10, 13 | `engine.py`, `cli.py` | `test_engine.py`, `tests/unit/game/test_cli.py` |
 | CH-07, CH-08, INT-03 | 9, 10 | `card_game/rules.py`, `engine.py` | `tests/unit/game/test_rules.py`, `test_engine.py` |
-| CH-09, INT-06 | 12 | `card_game/events.py` | `tests/unit/game/test_events.py` |
+| CH-09, INT-06 | 12 | `card_game/events.py`, `engine.py` | `tests/unit/game/test_events.py`, `tests/integration/app/test_engine_logging.py` |
 | CH-10, INT-04, INT-07 | 9, 13 | `card_game/models.py`, `cli.py` | `tests/unit/game/test_models.py`, `test_cli.py` |
 | INT-08 | 5, 11 | `transport.py`, `engine.py` | `test_transport.py`, `test_engine_failures.py` |
 | API-13, OBS-04 | 5, 11 | `deck_of_cards_sdk/transport.py`, `client.py`, `card_game/engine.py` | `tests/integration/sdk/test_transport.py`, `test_client_pile.py`, `tests/integration/app/test_engine_failures.py` |

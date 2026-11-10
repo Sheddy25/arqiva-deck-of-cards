@@ -6,8 +6,9 @@ at a time into face-down discard piles, and every King starts a new pile.
 
 > **Status:** in progress. The SDK's card model, validation, errors, HTTP
 > transport, deck operations, pile operations and live smoke test are done.
-> The game's rules, pile model, engine and failure handling are done, and CI
-> checks every pull request; transaction logging is next.
+> The game's rules, pile model, engine, failure handling and transaction
+> logging are done, and CI checks every pull request; the command-line app
+> is next.
 > See [the implementation plan](docs/implementation-plan.md).
 
 ## Layout
