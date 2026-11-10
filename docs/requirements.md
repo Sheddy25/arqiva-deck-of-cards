@@ -135,11 +135,11 @@ say.
 
 ## Traceability
 
-Planned implementation and tests follow [implementation-plan.md](implementation-plan.md).
+Implementation and tests follow the steps in [implementation-plan.md](implementation-plan.md).
 
 | Requirement | Plan step | Implementation | Tests |
 | --- | --- | --- | --- |
-| CH-01, DEC-01 | 2–8 | `src/deck_of_cards_sdk/` | `tests/unit/sdk/`, `tests/integration/sdk/`, `tests/smoke/` |
+| CH-01, DEC-01 | 2–8 | `src/deck_of_cards_sdk/` | `tests/unit/sdk/`, `tests/integration/sdk/`, `tests/smoke/`, `tests/test_imports.py` (the SDK does not import the game) |
 | API-06, OBS-01, OBS-02, DEC-02 | 3, 4 | `deck_of_cards_sdk/models.py` (`Card`, `parse_card`), `validation.py` | `tests/unit/sdk/test_models.py`, `test_validation.py` |
 | DEC-02 (binning) | 9, 10, 12, 13 | `card_game/rules.py`, `engine.py`, `events.py`, `cli.py` | `test_rules.py`, `test_engine.py`, `test_events.py`, `test_cli.py` |
 | API-01–API-05, OBS-03 | 4–6 | `validation.py`, `transport.py`, `client.py` | `tests/unit/sdk/`, `tests/integration/sdk/` |
@@ -149,11 +149,11 @@ Planned implementation and tests follow [implementation-plan.md](implementation-
 | CH-04, INT-01 | 10 | `engine.py` | `tests/integration/app/test_engine.py` |
 | CH-05, INT-02 | 10 | `engine.py` | `tests/integration/app/test_engine.py` |
 | CH-06, INT-05, API-12 | 10, 13 | `engine.py`, `cli.py`, `deck_of_cards_sdk/models.py` (`CARD_BACK_IMAGE`) | `test_engine.py`, `tests/unit/game/test_cli.py` |
-| CH-07, CH-08, INT-03 | 9, 10 | `card_game/rules.py`, `engine.py` | `tests/unit/game/test_rules.py`, `test_engine.py` |
-| CH-09, INT-06 | 12 | `card_game/events.py`, `engine.py` | `tests/unit/game/test_events.py`, `tests/integration/app/test_engine_logging.py` |
+| CH-07, CH-08, INT-03 | 9, 10 | `card_game/rules.py`, `engine.py` | `tests/unit/game/test_rules.py`, `test_engine.py`, `test_invariants.py` |
+| CH-09, INT-06 | 12, 13 | `card_game/events.py`, `engine.py`, `cli.py` | `tests/unit/game/test_events.py`, `tests/integration/app/test_engine_logging.py`, `test_cli.py` |
 | CH-10, INT-04, INT-07 | 9, 13 | `card_game/models.py`, `cli.py` | `tests/unit/game/test_models.py`, `test_cli.py` |
 | INT-08 | 5, 11 | `transport.py`, `engine.py` | `test_transport.py`, `test_engine_failures.py` |
 | API-13, OBS-04 | 5, 11 | `deck_of_cards_sdk/transport.py`, `client.py`, `card_game/engine.py` | `tests/integration/sdk/test_transport.py`, `test_client_pile.py`, `tests/integration/app/test_engine_failures.py` |
-| CH-13 | 9, 15 | `rules.py`, `docs/interview-guide.md` | Ace-rule test in `test_engine.py` |
+| CH-13 | 9, 10 | `rules.py`, `engine.py` (the `rule` option) | Ace-rule and binning-rule tests in `test_engine.py` |
 | CH-02, CH-12, DEC-04 | All | `docs/prompt-sheet.md` | Reviewed before each commit |
 | CH-11, CH-14, CH-15, DEC-03, DEC-05 | All, 14 | Repository, `.github/workflows/ci.yml`, `constraints.txt` | CI on every pull request |

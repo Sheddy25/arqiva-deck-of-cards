@@ -1,7 +1,23 @@
 # Prompt sheet
 
-## Prompt 0001 — Review and format the architecture design
+The AI prompts used while building this project, as the brief asks (CH-02,
+CH-12, DEC-04).
 
+I wrote the bulk of the code. Each entry records a prompt I gave, and the AI
+is credited with the work that prompt produced. An outcome below a prompt
+says what it produced and what I decided.
+
+Each prompt has the same parts:
+
+- **Role:** the expertise the AI should bring.
+- **Context:** the files, requirements and state of the project it needs.
+- **Task:** what to do, in order.
+- **Constraints:** the limits, such as suggesting only or keeping the SDK
+  free of game rules.
+- **Output:** what to return, usually findings or a reviewable diff.
+- **Verification:** how I checked the result before keeping it.
+
+## Prompt 0001 — Review and format the architecture design
 
 ```text
 Role
@@ -47,9 +63,6 @@ confirm every requirement above is still covered before committing.
 ```
 
 ## Prompt 0002 — Write the implementation plan
-
-
-
 
 ```text
 Role
@@ -118,7 +131,6 @@ Constraints
 - Do not invent API behaviour; cite the requirement ID or API documentation.
 - Avoid suggestions that add complexity without a clear benefit.
 
-
 Output
 A prioritised list of findings with suggested changes, then a one-line
 verdict on whether the step is ready to commit.
@@ -160,7 +172,6 @@ Constraints
 - Follow the brief exactly; do not keep behaviour that relies on
   undocumented API responses.
 - Do not remove the documented jokers_enabled option.
-
 
 Output
 The code, test and documentation changes as a reviewable diff, and a short
