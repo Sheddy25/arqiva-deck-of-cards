@@ -42,10 +42,11 @@ class DeckOfCardsClient:
     raises :class:`InvalidArgumentError` without calling the API.
 
     The client records which cards it has drawn from each deck and which pile
-    each one is in, because the API accepts adding a card that was never
-    drawn and silently moves a card that is already in another pile
-    (OBS-05). :meth:`add_to_pile` checks this record first (DEC-06), so only
-    cards drawn through this client can be added to piles.
+    each one is in, because the API reports success for a card that was
+    never drawn without placing it, and silently moves a card that is
+    already in another pile (OBS-05). :meth:`add_to_pile` checks this record
+    first (DEC-06), so only cards drawn through this client can be added to
+    piles.
     """
 
     def __init__(self, transport: HttpTransport | None = None) -> None:

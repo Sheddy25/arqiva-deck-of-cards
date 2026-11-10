@@ -5,8 +5,8 @@ and a command-line game that uses it. The game draws a shuffled deck one card
 at a time into face-down discard piles, and every King starts a new pile.
 
 > **Status:** in progress. The SDK's card model, validation, errors, HTTP
-> transport, deck operations and pile operations are done; the live smoke
-> test and the game are next. See
+> transport, deck operations, pile operations and live smoke test are done;
+> the game is next. See
 > [the implementation plan](docs/implementation-plan.md).
 
 ## Layout
@@ -22,7 +22,8 @@ docs/
 └── prompt-sheet.md      # AI prompts used
 tests/
 ├── unit/                # Fast tests of single modules
-└── integration/         # SDK tests over a mock HTTP transport
+├── integration/         # SDK tests over a mock HTTP transport
+└── smoke/               # Opt-in checks against the live API
 ```
 
 ## Setup
@@ -42,4 +43,8 @@ ruff format --check .   # formatting
 ruff check .            # linting
 mypy src tests          # type checking
 pytest                  # tests (live API smoke tests excluded)
+DECK_API_SMOKE=1 pytest -m smoke   # live API smoke tests
 ```
+
+The smoke tests call the real API, so they are opt-in; see
+[why the smoke test is opt-in](docs/architecture.md#why-the-smoke-test-is-opt-in).
