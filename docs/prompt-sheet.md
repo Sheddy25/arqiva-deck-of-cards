@@ -417,3 +417,65 @@ apply, and re-run ruff, mypy and pytest after any change.
 > that now: the check compares the cards drawn with one standard pack, and a
 > test bins the 2s to prove a new binning rule needs no other change. The
 > other findings stay as recommendations for later steps.
+
+## Prompt 0009 — Add transaction logging to the game
+
+```text
+Role
+Act as a senior Python software engineer adding observability to a
+command-line game.
+
+Context
+The brief asks the game to "log each transaction in the game" (CH-09).
+docs/requirements.md defines a transaction as each game action: creating
+the deck, each draw, starting a pile, each pile add, binning a Joker, any
+failure, and game completion (INT-06). Step 12 of
+docs/implementation-plan.md plans src/card_game/events.py with an Event
+enum, a logging helper that numbers each event, and a JSON Lines formatter
+for an optional audit file, and asks the engine to log each attempt before
+an API call and the confirmed result after it. docs/architecture.md says
+the console must keep cards face down, while a verbose or audit log may
+show card codes. The engine (src/card_game/engine.py) already raises
+GameInterruptedError when a call fails.
+
+Task
+1. Write src/card_game/events.py: the events, a way to log one game's
+   events with a sequence number starting at 1 and context such as deck
+   ID, card, pile and cards remaining, and a formatter that writes one JSON
+   object per line.
+2. Make the engine log every transaction, including the shuffle of a Joker
+   deck, each binned Joker, a failed call, an interrupted game and a failed
+   completion check.
+3. Write unit tests for the events module, and engine tests that check the
+   events logged in a full game, a Joker game and a failed game.
+4. Update docs/implementation-plan.md, docs/architecture.md,
+   docs/requirements.md and README.md to match, adding a change note
+   wherever the work differs from the plan.
+
+Constraints
+- Use only the standard logging package.
+- Keep card codes out of log messages, so a plain console log cannot reveal
+  the draw order; keep them available to the audit file.
+- Never log request headers, environment variables or response bodies.
+- Keep the engine's game logic unchanged; logging must not alter the
+  result.
+- Keep the original plan wording; record changes with dated change notes and
+  reasons.
+
+Output
+The module, engine changes, tests and documentation changes as a
+reviewable diff, and a short summary of each design choice.
+
+Verification
+I will run ruff, mypy and pytest with coverage, and play one live game with
+a console handler and a JSON Lines file handler attached to check both
+outputs.
+```
+
+> **Outcome (2026-11-10):** the AI built this step. `TransactionLog`
+> numbers each game's events, the engine logs every attempt at `DEBUG` and
+> every confirmed result, and `JsonLinesFormatter` writes the full context,
+> including card codes, to an audit file. Card codes are left out of log
+> messages, so the console stays face down. It added `operation.started`
+> and `deck.shuffled` events, with change notes. A live game logged 216
+> transactions to the console and the audit file.

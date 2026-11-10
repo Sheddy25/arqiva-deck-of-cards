@@ -683,6 +683,32 @@ JSON.
 >
 > **Reason:** binning a card is a game transaction (CH-09, INT-06, DEC-02).
 
+> **Change (2026-11-10):** as built (prompt 0009):
+>
+> - `TransactionLog(logger).record(event, **context)` replaces
+>   `log_event(logger, event, **context)`. Each game makes one, so its
+>   sequence numbers start at 1. Context values of `None` are dropped.
+> - Two more events: `operation.started`, logged at `DEBUG` before each API
+>   call (the attempt), and `deck.shuffled`, for the shuffle of a Joker deck.
+>   `operation.failed` and `game.interrupted` are logged at `ERROR`, the
+>   rest at `INFO`.
+> - Each record carries `event`, `sequence` and `context` for formatters.
+>   Card codes (`card`, `unplaced`) are in `context` but not in the message,
+>   so a plain console log keeps the cards face down, and
+>   `JsonLinesFormatter` writes them to the audit file.
+> - The engine logs to the `card_game.engine` logger. A failed game logs
+>   `operation.failed` then `game.interrupted`; a failed completion check
+>   logs `operation.failed` with `operation=completion check`.
+>   `GameInterruptedError` gained `reason`, the failure's own message.
+> - The engine's logging is tested in
+>   `tests/integration/app/test_engine_logging.py`.
+>
+> **Reason:** a sequence number per game needs somewhere to keep count. The
+> attempt events show that each call is logged before it is made, and the
+> shuffle is an API transaction too. Keeping card codes out of messages
+> means the face-down output (step 13) cannot leak the draw order through
+> the log.
+
 **Commit:** `feat(game): add transaction logging`
 
 ---

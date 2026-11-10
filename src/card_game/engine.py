@@ -5,10 +5,12 @@ on the current discard pile, a card matching the rule (a King by default)
 starts a new pile, and a Joker is binned.
 """
 
+import logging
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Literal
 
+from card_game.events import Event, TransactionLog
 from card_game.models import DiscardPile, GameResult
 from card_game.ports import CardClient
 from card_game.rules import PileRule, should_bin_card, should_start_new_pile
@@ -28,6 +30,8 @@ JOKERS = frozenset({"X1", "X2"})
 Operation = Literal["create deck", "shuffle deck", "draw", "add to pile"]
 Outcome = Literal["rejected", "unknown"]
 
+_logger = logging.getLogger(__name__)
+
 
 class GameInvariantError(Exception):
     """A game finished but broke a rule it must keep, so its result cannot be
@@ -45,6 +49,7 @@ class GameInterruptedError(Exception):
             ``"unknown"`` after a timeout, lost connection, server error or
             unexpected response, when the call may have taken effect.
         deck_id: the deck, or ``None`` if none was created.
+        reason: what went wrong, such as the SDK error's message.
         unplaced: cards drawn but not confirmed in a pile.
         pile: the pile a card was being added to, if any.
         piles: the piles confirmed before the failure.
@@ -57,6 +62,7 @@ class GameInterruptedError(Exception):
         *,
         operation: Operation,
         outcome: Outcome,
+        reason: str,
         deck_id: str | None = None,
         unplaced: tuple[Card, ...] = (),
         pile: str | None = None,
@@ -66,6 +72,7 @@ class GameInterruptedError(Exception):
         super().__init__(message)
         self.operation = operation
         self.outcome = outcome
+        self.reason = reason
         self.deck_id = deck_id
         self.unplaced = unplaced
         self.pile = pile
@@ -91,6 +98,10 @@ class GameEngine:
         client: the client used to create the deck, draw and add to piles.
         rule: decides whether a card starts a new pile; a King by default.
         jokers: include the two Jokers, which are drawn and binned (DEC-02).
+
+    Each game logs its transactions to the ``card_game.engine`` logger
+    (CH-09): the attempt before each API call, at ``DEBUG``, and the
+    confirmed result after it.
     """
 
     def __init__(
@@ -117,14 +128,28 @@ class GameEngine:
             GameInvariantError: if the finished game breaks a rule it must
                 keep.
         """
-        deck = self._create_deck()
+        log = TransactionLog(_logger)
+        try:
+            return self._play(log)
+        except GameInterruptedError as error:
+            _log_interruption(log, error)
+            raise
+        except GameInvariantError as error:
+            log.record(
+                Event.OPERATION_FAILED, operation="completion check", reason=str(error)
+            )
+            raise
+
+    def _play(self, log: TransactionLog) -> GameResult:
+        deck = self._create_deck(log)
         game = _Progress(deck.deck_id, deck.remaining)
         while game.remaining > 0:
-            card = self._draw_one(game)
+            card = self._draw_one(game, log)
             if should_bin_card(card):
                 game.binned.append(card)
+                log.record(Event.CARD_BINNED, deck_id=game.deck_id, card=card.code)
             else:
-                self._place(game, card)
+                self._place(game, card, log)
 
         result = GameResult(
             game.deck_id, tuple(game.piles), game.remaining, tuple(game.binned)
@@ -136,25 +161,54 @@ class GameEngine:
             rule=self._rule,
             jokers=self._jokers,
         )
+        log.record(
+            Event.GAME_COMPLETED,
+            deck_id=result.deck_id,
+            piles=len(result.piles),
+            discarded=result.total_discarded,
+            binned=len(result.binned),
+            remaining=result.cards_remaining,
+        )
         return result
 
-    def _create_deck(self) -> Deck:
+    def _create_deck(self, log: TransactionLog) -> Deck:
+        log.record(
+            Event.OPERATION_STARTED, operation="create deck", jokers=self._jokers
+        )
         try:
-            if not self._jokers:
-                return self._client.create_deck()
-            # The API documents Jokers only for an unshuffled deck (API-04).
-            deck = self._client.create_deck(shuffled=False, jokers_enabled=True)
+            if self._jokers:
+                # The API documents Jokers only for an unshuffled deck (API-04).
+                deck = self._client.create_deck(shuffled=False, jokers_enabled=True)
+            else:
+                deck = self._client.create_deck()
         except DeckOfCardsError as error:
             raise _interrupted(str(error), "create deck", _outcome(error)) from error
+        log.record(
+            Event.DECK_CREATED,
+            deck_id=deck.deck_id,
+            shuffled=deck.shuffled,
+            remaining=deck.remaining,
+        )
+        if not self._jokers:
+            return deck
+
+        log.record(
+            Event.OPERATION_STARTED, operation="shuffle deck", deck_id=deck.deck_id
+        )
         try:
-            return self._client.shuffle_deck(deck.deck_id)
+            shuffled = self._client.shuffle_deck(deck.deck_id)
         except DeckOfCardsError as error:
             game = _Progress(deck.deck_id, deck.remaining)
             raise _interrupted(
                 str(error), "shuffle deck", _outcome(error), game
             ) from error
+        log.record(
+            Event.DECK_SHUFFLED, deck_id=shuffled.deck_id, remaining=shuffled.remaining
+        )
+        return shuffled
 
-    def _draw_one(self, game: _Progress) -> Card:
+    def _draw_one(self, game: _Progress, log: TransactionLog) -> Card:
+        log.record(Event.OPERATION_STARTED, operation="draw", deck_id=game.deck_id)
         try:
             draw = self._client.draw_cards(game.deck_id, 1)
         except IncompleteDrawError as error:
@@ -176,12 +230,26 @@ class GameEngine:
                 game,
                 unplaced=draw.cards,
             )
-        return draw.cards[0]
+        card = draw.cards[0]
+        log.record(
+            Event.CARD_DRAWN,
+            deck_id=game.deck_id,
+            card=card.code,
+            remaining=draw.remaining,
+        )
+        return card
 
-    def _place(self, game: _Progress, card: Card) -> None:
+    def _place(self, game: _Progress, card: Card, log: TransactionLog) -> None:
         """Add ``card`` to its pile, and record it once the API confirms."""
         starts_pile = not game.piles or self._rule(card)
         name = f"discard_{len(game.piles) + 1}" if starts_pile else game.piles[-1].name
+        log.record(
+            Event.OPERATION_STARTED,
+            operation="add to pile",
+            deck_id=game.deck_id,
+            pile=name,
+            card=card.code,
+        )
         try:
             added = self._client.add_to_pile(game.deck_id, name, [card.code])
         except DeckOfCardsError as error:
@@ -197,8 +265,39 @@ class GameEngine:
         game.remaining = added.remaining
         if starts_pile:
             game.piles.append(DiscardPile(name, (card,)))
+            log.record(Event.PILE_CREATED, deck_id=game.deck_id, pile=name)
         else:
             game.piles[-1] = game.piles[-1].with_card(card)
+        log.record(
+            Event.CARD_DISCARDED,
+            deck_id=game.deck_id,
+            pile=name,
+            card=card.code,
+            pile_count=game.piles[-1].count,
+            remaining=added.remaining,
+        )
+
+
+def _log_interruption(log: TransactionLog, error: GameInterruptedError) -> None:
+    cause = error.__cause__
+    log.record(
+        Event.OPERATION_FAILED,
+        operation=error.operation,
+        outcome=error.outcome,
+        error=type(cause).__name__ if cause else None,
+        reason=error.reason,
+        deck_id=error.deck_id,
+        pile=error.pile,
+    )
+    log.record(
+        Event.GAME_INTERRUPTED,
+        deck_id=error.deck_id,
+        outcome=error.outcome,
+        piles=len(error.piles),
+        discarded=sum(pile.count for pile in error.piles),
+        binned=len(error.binned),
+        unplaced=[card.code for card in error.unplaced] or None,
+    )
 
 
 def _outcome(error: DeckOfCardsError) -> Outcome:
@@ -229,6 +328,7 @@ def _interrupted(
         message,
         operation=operation,
         outcome=outcome,
+        reason=reason,
         deck_id=game.deck_id if game else None,
         unplaced=unplaced,
         pile=pile,
