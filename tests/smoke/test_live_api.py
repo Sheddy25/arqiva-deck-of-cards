@@ -15,6 +15,7 @@ from deck_of_cards_sdk import (
     DeckOfCardsClient,
     HttpStatusError,
     HttpTransport,
+    IncompleteDrawError,
 )
 
 pytestmark = [
@@ -85,11 +86,16 @@ def test_failures_have_the_observed_form(client: DeckOfCardsClient) -> None:
         client.draw_cards("nosuchdeck00")
     with pytest.raises(HttpStatusError, match="Not enough cards") as pile:
         client.draw_from_pile(deck.deck_id, "discard_1", count=2)
-    with pytest.raises(ApiError, match="Not enough cards"):
+    with pytest.raises(IncompleteDrawError, match="Not enough cards") as over_draw:
         client.draw_cards(deck.deck_id, 2)
+    last = over_draw.value.result.cards
+    client.add_to_pile(deck.deck_id, "discard_1", [card.code for card in last])
 
     assert unknown.value.status_code == 404
     assert pile.value.status_code == 404
+    assert isinstance(over_draw.value, ApiError)
+    assert len(last) == 1
+    assert over_draw.value.result.remaining == 0
 
 
 def test_the_api_still_accepts_adds_the_client_guards_against() -> None:

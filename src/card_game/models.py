@@ -5,27 +5,26 @@ from dataclasses import dataclass
 from deck_of_cards_sdk import Card
 
 
-@dataclass
+@dataclass(frozen=True)
 class DiscardPile:
     """A face-down discard pile, holding its cards in the order they were
     placed.
 
     The bottom card is the first placed and the top card the most recently
     placed (INT-04). A pile is created with its first card, so it is never
-    empty.
+    empty. Piles cannot be changed; :meth:`with_card` returns a new pile.
     """
 
     name: str
-    cards: list[Card]
+    cards: tuple[Card, ...]
 
     def __post_init__(self) -> None:
         if not self.cards:
             raise ValueError(f"pile {self.name!r} must start with a card")
-        self.cards = list(self.cards)
 
-    def add(self, card: Card) -> None:
-        """Place ``card`` on top of the pile."""
-        self.cards.append(card)
+    def with_card(self, card: Card) -> "DiscardPile":
+        """This pile with ``card`` placed on top."""
+        return DiscardPile(self.name, (*self.cards, card))
 
     @property
     def bottom(self) -> Card:

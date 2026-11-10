@@ -121,8 +121,11 @@ def test_success_false_raises_api_error_with_the_api_message() -> None:
     }
     handler = RecordingHandler(httpx.Response(200, json=body))
 
-    with pytest.raises(ApiError, match="Not enough cards remaining"):
+    with pytest.raises(ApiError, match="Not enough cards remaining") as error:
         make_transport(handler).get_json("deck/abc123/draw/", {"count": 1})
+
+    assert error.value.body == body
+    assert str(error.value) == "Not enough cards remaining to draw 1 additional"
 
 
 def test_success_false_without_a_message_still_raises_api_error() -> None:

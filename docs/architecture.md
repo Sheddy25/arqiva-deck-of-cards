@@ -45,6 +45,7 @@ nothing about Kings, discard piles, or game completion.
 | Module | Responsibility |
 | --- | --- |
 | `client.py` | Public `DeckOfCardsClient` operations, endpoint-specific parameter construction, and the record of drawn cards that guards pile adds (DEC-06) |
+| `card_record.py` | The record of drawn cards and the pile each is in, used by the client's guard (DEC-06) |
 | `models.py` | Immutable typed cards, deck state, pile state, and parsed operation results |
 | `transport.py` | One place for HTTPS requests, timeout handling, HTTP status handling and JSON decoding, with no automatic retries |
 | `validation.py` | Deck ID, pile name, count, deck count, card code, and option validation |
@@ -62,6 +63,13 @@ cards it has drawn from each deck and the pile each one is in, and
 sending a request (DEC-06). Deck draws, pile draws, returns and full
 reshuffles keep the record up to date. The record holds no game rules and no
 pile order; the game keeps its own ordered piles (INT-07).
+
+> **Change (2026-11-10):** the record is `CardRecord` in its own module,
+> `card_record.py`, which the client uses. It also records the cards an
+> over-draw did draw (OBS-04).
+>
+> **Reason:** it keeps `client.py` to the API operations, and the record can
+> be read on its own (prompt 0008).
 
 Planned public operations:
 
@@ -139,6 +147,7 @@ It does not decide when to create piles or mutate game state directly.
 │   │   └── rules.py
 │   └── deck_of_cards_sdk/
 │       ├── __init__.py
+│       ├── card_record.py
 │       ├── client.py
 │       ├── exceptions.py
 │       ├── models.py
@@ -211,6 +220,20 @@ A rejected draw can still change state: drawing more cards than remain still
 draws the cards that were left (OBS-04). The game avoids this by drawing one
 card only while cards remain.
 
+> **Change (2026-11-10):** the SDK raises `IncompleteDrawError`, a kind of
+> `ApiError`, for an over-draw. It carries the cards the API did draw, and
+> the client records them so they can still be added to piles. If the game
+> ever over-draws, those cards are listed in the error as not confirmed in a
+> pile.
+>
+> **Reason:** otherwise those cards would be out of the deck but unknown to
+> the caller and the client (prompt 0008).
+
+> **Note (2026-11-10):** an HTTP 5xx status is treated as `unknown`, because
+> a server error does not show whether the request took effect. A draw that
+> succeeds but does not return exactly one card is also `unknown`, because
+> the API is not behaving as documented.
+
 If a draw fails, the engine may know no card code at all. If the draw was
 confirmed but the add was rejected or unknown, the error keeps the known card
 and intended pile. In both cases it stops because retrying could repeat a
@@ -279,6 +302,16 @@ Jokers, and the number of cards remaining.
 above, an optional card and pile, and the piles confirmed so far. Card and
 pile are absent when a draw fails.
 
+> **Change (2026-11-10):** in place of one optional card,
+> `GameInterruptedError` has `unplaced`: the cards drawn but not confirmed in
+> a pile. It also holds the deck ID (`None` if no deck was created) and the
+> Jokers binned so far. `DiscardPile` is frozen and holds a tuple of cards;
+> `with_card` returns a new pile with the card on top.
+>
+> **Reason:** a faulty draw can return two cards, and an over-draw can return
+> cards too. Frozen piles mean a `GameResult` or an error cannot be changed
+> after it is made (prompt 0008).
+
 Each confirmed `DiscardPile` owns an ordered card list:
 
 - `cards[0]` is the bottom;
@@ -311,6 +344,13 @@ All JSON requests pass through one transport method, `get_json`. It translates:
 - `"success": false` into `ApiError`.
 
 Error messages use the API's own `error` text when the body is JSON (OBS-04).
+
+> **Change (2026-11-10):** `ApiError` keeps the response's JSON object as
+> `body`, outside the message, so the client can read the cards from an
+> over-draw.
+>
+> **Reason:** the over-draw response still holds the cards that were drawn
+> (OBS-04).
 
 ### Retry policy
 

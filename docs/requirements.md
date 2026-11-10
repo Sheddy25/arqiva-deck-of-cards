@@ -80,6 +80,12 @@ say.
 > (DEC-06) is still needed, because a caller would otherwise believe the
 > card had been placed.
 
+> **Note (2026-11-10):** asking a pile for more cards than it holds fails
+> with HTTP 404 and leaves every card in the pile, whether drawing from the
+> top or the bottom of the pile. A deck is different: asking it for more
+> cards than remain fails but still draws the cards that were left (OBS-04).
+> Checked live while building plan step 11.
+
 ## Interpretations (`INT`)
 
 | ID | Interpretation | Based on |
@@ -131,7 +137,7 @@ Planned implementation and tests follow [implementation-plan.md](implementation-
 | API-06, OBS-01, OBS-02, DEC-02 | 3, 4 | `deck_of_cards_sdk/models.py` (`Card`, `parse_card`), `validation.py` | `tests/unit/sdk/test_models.py`, `test_validation.py` |
 | DEC-02 (binning) | 9, 10, 12, 13 | `card_game/rules.py`, `engine.py`, `events.py`, `cli.py` | `test_rules.py`, `test_engine.py`, `test_events.py`, `test_cli.py` |
 | API-01–API-05, OBS-03 | 4–6 | `validation.py`, `transport.py`, `client.py` | `tests/unit/sdk/`, `tests/integration/sdk/` |
-| API-07–API-11, OBS-05, DEC-06 | 7 | `client.py` pile operations, `models.py` pile results | `tests/integration/sdk/test_client_pile.py`, `tests/unit/sdk/test_models.py` |
+| API-07–API-11, OBS-05, DEC-06 | 7, 11 | `client.py` pile operations, `card_record.py`, `models.py` pile results | `tests/integration/sdk/test_client_pile.py`, `tests/unit/sdk/test_models.py` |
 | OBS-01–OBS-05, DEC-06 | 8 | Live checks of the SDK | `tests/smoke/test_live_api.py`, run with `DECK_API_SMOKE=1 pytest -m smoke` |
 | CH-03 | 10, 13 | `card_game/engine.py`, `ports.py`, `cli.py` | `tests/integration/app/` |
 | CH-04, INT-01 | 10 | `engine.py` | `tests/integration/app/test_engine.py` |
@@ -140,8 +146,8 @@ Planned implementation and tests follow [implementation-plan.md](implementation-
 | CH-07, CH-08, INT-03 | 9, 10 | `card_game/rules.py`, `engine.py` | `tests/unit/game/test_rules.py`, `test_engine.py` |
 | CH-09, INT-06 | 12 | `card_game/events.py` | `tests/unit/game/test_events.py` |
 | CH-10, INT-04, INT-07 | 9, 13 | `card_game/models.py`, `cli.py` | `tests/unit/game/test_models.py`, `test_cli.py` |
-| INT-08 | 5, 11 | `transport.py`, `engine.py` | `test_transport.py`, `test_engine.py` |
-| API-13, OBS-04 | 5, 11 | `deck_of_cards_sdk/transport.py`, `card_game/engine.py` | `tests/integration/sdk/test_transport.py`, `test_engine.py` |
+| INT-08 | 5, 11 | `transport.py`, `engine.py` | `test_transport.py`, `test_engine_failures.py` |
+| API-13, OBS-04 | 5, 11 | `deck_of_cards_sdk/transport.py`, `client.py`, `card_game/engine.py` | `tests/integration/sdk/test_transport.py`, `test_client_pile.py`, `tests/integration/app/test_engine_failures.py` |
 | CH-13 | 9, 15 | `rules.py`, `docs/interview-guide.md` | Ace-rule test in `test_engine.py` |
 | CH-02, CH-12, DEC-04 | All | `docs/prompt-sheet.md` | Reviewed before each commit |
 | CH-11, CH-14, CH-15, DEC-03, DEC-05 | All, 14 | Repository, `.github/workflows/ci.yml`, `constraints.txt` | CI on every pull request |

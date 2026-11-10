@@ -6,19 +6,82 @@ starts a new pile, and a Joker is binned.
 """
 
 from collections.abc import Sequence
+from dataclasses import dataclass, field
+from typing import Literal
 
 from card_game.models import DiscardPile, GameResult
 from card_game.ports import CardClient
 from card_game.rules import PileRule, should_bin_card, should_start_new_pile
-from deck_of_cards_sdk import Card, Deck
+from deck_of_cards_sdk import (
+    ApiError,
+    Card,
+    Deck,
+    DeckOfCardsError,
+    HttpStatusError,
+    IncompleteDrawError,
+    InvalidArgumentError,
+)
 
 STANDARD_DECK = frozenset(rank + suit for rank in "A234567890JQK" for suit in "SDCH")
 JOKERS = frozenset({"X1", "X2"})
+
+Operation = Literal["create deck", "shuffle deck", "draw", "add to pile"]
+Outcome = Literal["rejected", "unknown"]
 
 
 class GameInvariantError(Exception):
     """A game finished but broke a rule it must keep, so its result cannot be
     trusted."""
+
+
+class GameInterruptedError(Exception):
+    """A call to the API failed, so the game stopped before the end.
+
+    Nothing is retried and no result is reported (INT-08).
+
+    Attributes:
+        operation: the call that failed.
+        outcome: ``"rejected"`` if the API answered and refused the call;
+            ``"unknown"`` after a timeout, lost connection, server error or
+            unexpected response, when the call may have taken effect.
+        deck_id: the deck, or ``None`` if none was created.
+        unplaced: cards drawn but not confirmed in a pile.
+        pile: the pile a card was being added to, if any.
+        piles: the piles confirmed before the failure.
+        binned: the Jokers binned before the failure.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        operation: Operation,
+        outcome: Outcome,
+        deck_id: str | None = None,
+        unplaced: tuple[Card, ...] = (),
+        pile: str | None = None,
+        piles: tuple[DiscardPile, ...] = (),
+        binned: tuple[Card, ...] = (),
+    ) -> None:
+        super().__init__(message)
+        self.operation = operation
+        self.outcome = outcome
+        self.deck_id = deck_id
+        self.unplaced = unplaced
+        self.pile = pile
+        self.piles = piles
+        self.binned = binned
+
+
+@dataclass
+class _Progress:
+    """What the API has confirmed so far in a game."""
+
+    deck_id: str
+    remaining: int
+    drawn: list[Card] = field(default_factory=list)
+    piles: list[DiscardPile] = field(default_factory=list)
+    binned: list[Card] = field(default_factory=list)
 
 
 class GameEngine:
@@ -49,37 +112,26 @@ class GameEngine:
         so the local piles keep the order cards were placed (INT-07).
 
         Raises:
+            GameInterruptedError: if a call to the API fails, or a draw does
+                not return exactly one card.
             GameInvariantError: if the finished game breaks a rule it must
                 keep.
         """
         deck = self._create_deck()
-        remaining = deck.remaining
-        drawn: list[Card] = []
-        piles: list[DiscardPile] = []
-        binned: list[Card] = []
-
-        while remaining > 0:
-            draw = self._client.draw_cards(deck.deck_id, 1)
-            card = draw.cards[0]
-            drawn.append(card)
-            remaining = draw.remaining
+        game = _Progress(deck.deck_id, deck.remaining)
+        while game.remaining > 0:
+            card = self._draw_one(game)
             if should_bin_card(card):
-                binned.append(card)
-                continue
-
-            starts_pile = not piles or self._rule(card)
-            name = f"discard_{len(piles) + 1}" if starts_pile else piles[-1].name
-            added = self._client.add_to_pile(deck.deck_id, name, [card.code])
-            remaining = added.remaining
-            if starts_pile:
-                piles.append(DiscardPile(name, [card]))
+                game.binned.append(card)
             else:
-                piles[-1].add(card)
+                self._place(game, card)
 
-        result = GameResult(deck.deck_id, tuple(piles), remaining, tuple(binned))
+        result = GameResult(
+            game.deck_id, tuple(game.piles), game.remaining, tuple(game.binned)
+        )
         check_invariants(
             result,
-            drawn,
+            game.drawn,
             deck_size=deck.remaining,
             rule=self._rule,
             jokers=self._jokers,
@@ -87,11 +139,102 @@ class GameEngine:
         return result
 
     def _create_deck(self) -> Deck:
-        if not self._jokers:
-            return self._client.create_deck()
-        # The API documents Jokers only for an unshuffled deck (API-04).
-        deck = self._client.create_deck(shuffled=False, jokers_enabled=True)
-        return self._client.shuffle_deck(deck.deck_id)
+        try:
+            if not self._jokers:
+                return self._client.create_deck()
+            # The API documents Jokers only for an unshuffled deck (API-04).
+            deck = self._client.create_deck(shuffled=False, jokers_enabled=True)
+        except DeckOfCardsError as error:
+            raise _interrupted(str(error), "create deck", _outcome(error)) from error
+        try:
+            return self._client.shuffle_deck(deck.deck_id)
+        except DeckOfCardsError as error:
+            game = _Progress(deck.deck_id, deck.remaining)
+            raise _interrupted(
+                str(error), "shuffle deck", _outcome(error), game
+            ) from error
+
+    def _draw_one(self, game: _Progress) -> Card:
+        try:
+            draw = self._client.draw_cards(game.deck_id, 1)
+        except IncompleteDrawError as error:
+            cards = error.result.cards
+            game.drawn.extend(cards)
+            raise _interrupted(
+                str(error), "draw", "rejected", game, unplaced=cards
+            ) from error
+        except DeckOfCardsError as error:
+            raise _interrupted(str(error), "draw", _outcome(error), game) from error
+
+        game.drawn.extend(draw.cards)
+        game.remaining = draw.remaining
+        if len(draw.cards) != 1:
+            raise _interrupted(
+                f"asked for 1 card, got {len(draw.cards)}",
+                "draw",
+                "unknown",
+                game,
+                unplaced=draw.cards,
+            )
+        return draw.cards[0]
+
+    def _place(self, game: _Progress, card: Card) -> None:
+        """Add ``card`` to its pile, and record it once the API confirms."""
+        starts_pile = not game.piles or self._rule(card)
+        name = f"discard_{len(game.piles) + 1}" if starts_pile else game.piles[-1].name
+        try:
+            added = self._client.add_to_pile(game.deck_id, name, [card.code])
+        except DeckOfCardsError as error:
+            raise _interrupted(
+                str(error),
+                "add to pile",
+                _outcome(error),
+                game,
+                unplaced=(card,),
+                pile=name,
+            ) from error
+
+        game.remaining = added.remaining
+        if starts_pile:
+            game.piles.append(DiscardPile(name, (card,)))
+        else:
+            game.piles[-1] = game.piles[-1].with_card(card)
+
+
+def _outcome(error: DeckOfCardsError) -> Outcome:
+    """``"rejected"`` if the API answered and refused, so the call did not
+    take effect; ``"unknown"`` if it may have."""
+    if isinstance(error, HttpStatusError):
+        return "rejected" if error.status_code < 500 else "unknown"
+    if isinstance(error, InvalidArgumentError | ApiError):
+        return "rejected"
+    return "unknown"
+
+
+def _interrupted(
+    reason: str,
+    operation: Operation,
+    outcome: Outcome,
+    game: _Progress | None = None,
+    *,
+    unplaced: tuple[Card, ...] = (),
+    pile: str | None = None,
+) -> GameInterruptedError:
+    status = "was rejected" if outcome == "rejected" else "had an unknown outcome"
+    message = f"game interrupted: {operation} {status}: {reason}"
+    if unplaced:
+        codes = ", ".join(card.code for card in unplaced)
+        message += f"; not confirmed in a pile: {codes}"
+    return GameInterruptedError(
+        message,
+        operation=operation,
+        outcome=outcome,
+        deck_id=game.deck_id if game else None,
+        unplaced=unplaced,
+        pile=pile,
+        piles=tuple(game.piles) if game else (),
+        binned=tuple(game.binned) if game else (),
+    )
 
 
 def check_invariants(

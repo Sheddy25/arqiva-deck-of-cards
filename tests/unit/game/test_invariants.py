@@ -8,9 +8,7 @@ from card_game.engine import GameInvariantError, check_invariants
 from card_game.models import DiscardPile, GameResult
 from card_game.rules import PileRule, should_start_new_pile
 from deck_of_cards_sdk import Card
-from tests.cards import make_card
-
-PACK_ORDER = [rank + suit for suit in "SDCH" for rank in "A234567890JQK"]
+from tests.cards import PACK_ORDER, make_card
 
 
 def finished_game() -> tuple[GameResult, list[Card]]:
@@ -19,9 +17,9 @@ def finished_game() -> tuple[GameResult, list[Card]]:
     piles: list[DiscardPile] = []
     for card in drawn:
         if not piles or card.is_king:
-            piles.append(DiscardPile(f"discard_{len(piles) + 1}", [card]))
+            piles.append(DiscardPile(f"discard_{len(piles) + 1}", (card,)))
         else:
-            piles[-1].add(card)
+            piles[-1] = piles[-1].with_card(card)
     return GameResult("abc123", tuple(piles), cards_remaining=0), drawn
 
 
@@ -58,7 +56,7 @@ def test_a_correct_game_binning_other_cards_passes(
     monkeypatch.setattr("card_game.engine.should_bin_card", lambda c: c.is_king)
     result, drawn = finished_game()
     kings = tuple(card for card in drawn if card.is_king)
-    piles = (DiscardPile("discard_1", [c for c in drawn if not c.is_king]),)
+    piles = (DiscardPile("discard_1", tuple(c for c in drawn if not c.is_king)),)
 
     check(dataclasses.replace(result, piles=piles, binned=kings), drawn)
 
@@ -89,11 +87,12 @@ def test_a_card_drawn_twice_fails() -> None:
 
 def test_cards_out_of_draw_order_fail() -> None:
     result, drawn = finished_game()
-    pile = result.piles[0]
-    pile.cards[1], pile.cards[2] = pile.cards[2], pile.cards[1]
+    first, *rest = result.piles
+    swapped = (first.cards[0], first.cards[2], first.cards[1], *first.cards[3:])
+    piles = (dataclasses.replace(first, cards=swapped), *rest)
 
     with pytest.raises(GameInvariantError, match="in draw order"):
-        check(result, drawn)
+        check(dataclasses.replace(result, piles=piles), drawn)
 
 
 def test_a_binned_card_that_was_not_drawn_fails() -> None:
@@ -112,10 +111,11 @@ def test_cards_left_in_the_deck_fail() -> None:
 
 def test_misnamed_piles_fail() -> None:
     result, drawn = finished_game()
-    result.piles[1].name = "discard_9"
+    first, second, *rest = result.piles
+    piles = (first, dataclasses.replace(second, name="discard_9"), *rest)
 
     with pytest.raises(GameInvariantError, match="not named discard_1 upwards"):
-        check(result, drawn)
+        check(dataclasses.replace(result, piles=piles), drawn)
 
 
 def test_piles_that_do_not_follow_the_rule_fail() -> None:

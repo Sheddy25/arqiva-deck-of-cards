@@ -8,10 +8,12 @@ import httpx
 import pytest
 
 from deck_of_cards_sdk import (
+    ApiError,
     Card,
     DeckOfCardsClient,
     HttpStatusError,
     HttpTransport,
+    IncompleteDrawError,
     InvalidArgumentError,
     PileDrawResult,
     PileListing,
@@ -305,6 +307,37 @@ def test_a_failed_add_leaves_the_card_held() -> None:
     with pytest.raises(HttpStatusError):
         client.add_to_pile(DECK_ID, "discard", ["AS"])
     client.add_to_pile(DECK_ID, "discard", ["AS"])
+
+
+def test_an_over_draw_keeps_the_cards_the_api_drew() -> None:
+    over_draw = httpx.Response(
+        200,
+        json={
+            "success": False,
+            "deck_id": DECK_ID,
+            **cards_body("AS"),
+            "error": "Not enough cards remaining to draw 2 additional",
+        },
+    )
+    api = FakeApi(over_draw, ADDED)
+    client = make_client(api)
+
+    with pytest.raises(IncompleteDrawError, match="Not enough cards") as error:
+        client.draw_cards(DECK_ID, 2)
+    client.add_to_pile(DECK_ID, "discard", ["AS"])
+
+    assert isinstance(error.value, ApiError)
+    assert error.value.result.cards == (card("AS", "ACE", "SPADES"),)
+    assert error.value.result.remaining == 0
+
+
+def test_a_failed_draw_without_cards_is_a_plain_api_error() -> None:
+    api = FakeApi(httpx.Response(200, json={"success": False, "error": "No deck"}))
+
+    with pytest.raises(ApiError, match="No deck") as error:
+        make_client(api).draw_cards(DECK_ID)
+
+    assert not isinstance(error.value, IncompleteDrawError)
 
 
 def test_a_card_drawn_from_a_pile_can_be_added_to_another() -> None:

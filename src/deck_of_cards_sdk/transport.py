@@ -91,7 +91,9 @@ class HttpTransport:
         data = _json_object(response)
         success = data.get("success")
         if success is False:
-            raise ApiError(_error_text(data) or "the API reported success: false")
+            raise ApiError(
+                _error_text(data) or "the API reported success: false", body=data
+            )
         if success is not True:
             raise ResponseFormatError(
                 f"field 'success' must be true or false, got {success!r}"
