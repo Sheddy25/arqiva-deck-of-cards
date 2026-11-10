@@ -5,8 +5,8 @@ and a command-line game that uses it. The game draws a shuffled deck one card
 at a time into face-down discard piles, and every King starts a new pile.
 
 > **Status:** in progress. The SDK's card model, validation, errors, HTTP
-> transport, deck operations, pile operations and live smoke test are done;
-> the game is next. See
+> transport, deck operations, pile operations and live smoke test are done.
+> The game's rules and pile model are done; the game engine is next. See
 > [the implementation plan](docs/implementation-plan.md).
 
 ## Layout
