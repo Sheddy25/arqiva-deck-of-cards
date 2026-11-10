@@ -421,6 +421,9 @@ and argument errors.
 > recorded and cannot be added to a pile. Pile operations do not work with
 > several decks, so the record treats each card code as one card.
 
+> **Note (2026-11-10):** step 11 fixes the over-draw gap: the client raises
+> `IncompleteDrawError` carrying those cards, and records them.
+
 **Commit:** `feat(sdk): implement pile operations`
 
 ---
@@ -623,6 +626,32 @@ these cases.
 >
 > **Reason:** recommendations from the sanity check (prompt 0008). Cleaning
 > the engine first keeps it readable once every call has error handling.
+
+> **Change (2026-11-10):** as built:
+>
+> - `GameInterruptedError` holds `unplaced`, the cards drawn but not
+>   confirmed in a pile, in place of one optional card. It also holds the
+>   deck ID and the Jokers binned so far. Its operations are `create deck`,
+>   `shuffle deck`, `draw` and `add to pile`.
+> - `rejected` covers `InvalidArgumentError`, `ApiError` and HTTP 4xx;
+>   `unknown` covers timeouts, connection and other network failures, HTTP
+>   5xx, bad responses, and a draw that does not return exactly one card.
+> - `DiscardPile` is frozen with a tuple of cards, and `with_card` replaces
+>   `add`. `run()` is split into `_create_deck`, `_draw_one` and `_place`.
+> - `PACK_ORDER` lives in `tests/cards.py`.
+> - `CardRecord` is in `src/deck_of_cards_sdk/card_record.py`.
+> - `ApiError` keeps the response body as `body`. The client turns an
+>   over-draw into `IncompleteDrawError`, a kind of `ApiError` whose
+>   `result` holds the cards drawn, after recording them. The smoke test
+>   checks this against the live API, where a pile over-draw was also found
+>   to draw nothing.
+> - The failure tests are in `tests/integration/app/test_engine_failures.py`,
+>   and `FakeCardClient` takes `fail`, errors to raise on chosen calls, and
+>   `deal`, how many cards a chosen draw returns.
+>
+> **Reason:** a faulty draw can return two cards, so one optional card was
+> not enough. A server error does not show whether the request took effect.
+> A separate test file keeps the happy-path tests short.
 
 **Commit:** `feat(game): handle interrupted games safely`
 

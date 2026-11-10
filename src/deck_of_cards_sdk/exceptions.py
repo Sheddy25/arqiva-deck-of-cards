@@ -4,6 +4,12 @@ Every error is a :class:`DeckOfCardsError`, so callers can catch them all
 with one ``except`` clause.
 """
 
+from collections.abc import Mapping
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from deck_of_cards_sdk.models import DrawResult
+
 
 class DeckOfCardsError(Exception):
     """Base class for every error raised by the SDK."""
@@ -38,4 +44,23 @@ class ResponseFormatError(DeckOfCardsError):
 
 
 class ApiError(DeckOfCardsError):
-    """The API returned ``"success": false``."""
+    """The API returned ``"success": false``.
+
+    ``body`` is the response's JSON object, kept out of the message.
+    """
+
+    def __init__(self, message: str, body: Mapping[str, object] | None = None) -> None:
+        super().__init__(message)
+        self.body = body
+
+
+class IncompleteDrawError(ApiError):
+    """A draw asked for more cards than remained (OBS-04).
+
+    The API still draws the cards that were left. They are in ``result``, and
+    the client has recorded them, so they can be added to piles.
+    """
+
+    def __init__(self, message: str, result: "DrawResult") -> None:
+        super().__init__(message)
+        self.result = result

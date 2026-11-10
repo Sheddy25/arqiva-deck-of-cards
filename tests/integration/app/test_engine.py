@@ -9,9 +9,9 @@ from card_game.engine import GameEngine
 from card_game.models import GameResult
 from card_game.rules import PileRule, should_start_new_pile
 from deck_of_cards_sdk import Card, DeckOfCardsClient
+from tests.cards import PACK_ORDER
 from tests.fakes import DECK_ID, FakeCardClient
 
-PACK_ORDER = [rank + suit for suit in "SDCH" for rank in "A234567890JQK"]
 JOKER_CODES = ["X1", "X2"]
 
 

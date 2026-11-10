@@ -1,4 +1,4 @@
-"""Builds cards for game tests from their codes."""
+"""Cards for game tests."""
 
 from deck_of_cards_sdk import Card
 from deck_of_cards_sdk.validation import (
@@ -7,6 +7,9 @@ from deck_of_cards_sdk.validation import (
     RANK_VALUES,
     SUIT_NAMES,
 )
+
+PACK_ORDER = [rank + suit for suit in "SDCH" for rank in "A234567890JQK"]
+"""A new pack's order: spades, diamonds, clubs, hearts, each Ace to King."""
 
 
 def make_card(code: str) -> Card:
