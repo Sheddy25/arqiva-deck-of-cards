@@ -726,6 +726,26 @@ with a non-zero exit.
 > against the role. Doing it first means every later pull request is
 > checked, and pinned tools make CI results repeatable.
 
+> **Change (2026-11-10):** as built:
+>
+> - `constraints.txt` at the repository root pins the exact version of every
+>   package CI installs, and CI installs with
+>   `pip install -c constraints.txt -e ".[dev]"`. `pyproject.toml` keeps
+>   minimum versions, so the SDK stays easy to install alongside other
+>   packages.
+> - `pip-audit` checks `constraints.txt` rather than the CI environment, and
+>   `build` and `pip-audit` are added to `dev`.
+> - The coverage settings live in `pyproject.toml`: branch coverage, the two
+>   packages as the source, and `fail_under = 90`. CI runs `pytest --cov`,
+>   and the same threshold applies locally.
+> - The actions are pinned to commit hashes, the workflow token is
+>   read-only, and the checkout does not keep credentials.
+>
+> **Reason:** auditing the pinned list checks exactly what is installed and
+> leaves out the installer, whose local copy had a known vulnerability that
+> says nothing about this project. Settings in `pyproject.toml` mean local
+> runs match CI. Hash pinning stops a moved tag changing what CI runs.
+
 **Commit:** `ci: add quality checks workflow`
 
 ---

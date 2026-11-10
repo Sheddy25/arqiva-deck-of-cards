@@ -6,7 +6,8 @@ at a time into face-down discard piles, and every King starts a new pile.
 
 > **Status:** in progress. The SDK's card model, validation, errors, HTTP
 > transport, deck operations, pile operations and live smoke test are done.
-> The game's rules, pile model and engine are done; failure handling is next.
+> The game's rules, pile model and engine are done, and CI checks every pull
+> request; failure handling is next.
 > See [the implementation plan](docs/implementation-plan.md).
 
 ## Layout
@@ -36,6 +37,9 @@ source .venv/bin/activate
 python -m pip install -e ".[dev]"
 ```
 
+To install the exact tool versions CI uses, add `-c constraints.txt` to the
+install command.
+
 ## Checks
 
 ```bash
@@ -43,8 +47,14 @@ ruff format --check .   # formatting
 ruff check .            # linting
 mypy src tests          # type checking
 pytest                  # tests (live API smoke tests excluded)
+pytest --cov            # tests with coverage, failing below 90%
+pip-audit -r constraints.txt --no-deps --disable-pip   # known vulnerabilities
+python -m build         # package build
 DECK_API_SMOKE=1 pytest -m smoke   # live API smoke tests
 ```
+
+[CI](.github/workflows/ci.yml) runs every check except the smoke tests on
+Python 3.12 and 3.14 for each push and pull request to `main`.
 
 The smoke tests call the real API, so they are opt-in; see
 [why the smoke test is opt-in](docs/architecture.md#why-the-smoke-test-is-opt-in).

@@ -156,6 +156,7 @@ It does not decide when to create piles or mutate game state directly.
 │       └── sdk/
 ├── .gitignore
 ├── README.md
+├── constraints.txt
 └── pyproject.toml
 ```
 
@@ -420,6 +421,13 @@ the API, and before submission.
   ignored by Git.
 - CI runs formatting, linting, type checking, tests and a package build on
   every pull request (implementation plan step 14).
+
+  > **Change (2026-11-10):** CI also checks the pinned dependencies in
+  > `constraints.txt` for known vulnerabilities with `pip-audit`, and runs on
+  > Python 3.12 and 3.14. Its token is read-only and its actions are pinned to
+  > commit hashes.
+  >
+  > **Reason:** recommendations from the sanity check (prompt 0008).
 - Raw API response bodies are not included in normal exception messages.
 - The GitHub access tokens used during development must be revoked before
   submission; they are never stored in project files or Git configuration.

@@ -12,7 +12,9 @@ dependencies = ["httpx>=0.28"]
 
 [project.optional-dependencies]
 dev = [
+    "build>=1.6",
     "mypy>=2.4",
+    "pip-audit>=2.10",
     "pytest>=9.2",
     "pytest-cov>=7.1",
     "ruff>=0.17",
@@ -38,3 +40,11 @@ addopts = "-m 'not smoke' --strict-markers"
 markers = [
     "smoke: calls the real Deck of Cards API; run with 'pytest -m smoke'",
 ]
+
+[tool.coverage.run]
+source = ["deck_of_cards_sdk", "card_game"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
