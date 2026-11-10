@@ -72,6 +72,14 @@ say.
 | OBS-04 | Recorded 2026-11-09. An unknown deck ID returns HTTP 404 with `{"success": false, "error": "Deck ID does not exist."}`. Drawing more cards than remain returns HTTP 200 with `"success": false` and an `error` message, but still draws the cards that were left. An invalid parameter such as `count=abc` returns an HTML HTTP 500 page. |
 | OBS-05 | Recorded 2026-11-09. Unlike the reference examples, a draw-from-pile response has no top-level `remaining`, and returning drawn cards to the deck gives no `piles` or `shuffled`. Listing an unknown pile succeeds with no entry for it. After a pile is shuffled, the list order no longer matches the order cards were added. Adding a card that was never drawn succeeds, and adding a card already in another pile moves it. Drawing more cards than a pile holds returns HTTP 404 with an `error` message. A full reshuffle (without `remaining=true`) empties every pile. Returning drawn cards to the deck leaves cards in piles where they are, even when they are listed in `cards`. |
 
+> **Change to OBS-05 (2026-11-10):** "adding a card that was never drawn
+> succeeds" is incomplete. The response reports success, but the card stays
+> in the deck and the pile is created empty.
+>
+> **Reason:** found by the live smoke test (plan step 8). The client's guard
+> (DEC-06) is still needed, because a caller would otherwise believe the
+> card had been placed.
+
 ## Interpretations (`INT`)
 
 | ID | Interpretation | Based on |
@@ -117,6 +125,7 @@ Planned implementation and tests follow [implementation-plan.md](implementation-
 | DEC-02 (binning) | 9, 10, 12, 13 | `card_game/rules.py`, `engine.py`, `events.py`, `cli.py` | `test_rules.py`, `test_engine.py`, `test_events.py`, `test_cli.py` |
 | API-01–API-05, OBS-03 | 4–6 | `validation.py`, `transport.py`, `client.py` | `tests/unit/sdk/`, `tests/integration/sdk/` |
 | API-07–API-11, OBS-05, DEC-06 | 7 | `client.py` pile operations, `models.py` pile results | `tests/integration/sdk/test_client_pile.py`, `tests/unit/sdk/test_models.py` |
+| OBS-01–OBS-05, DEC-06 | 8 | Live checks of the SDK | `tests/smoke/test_live_api.py`, run with `DECK_API_SMOKE=1 pytest -m smoke` |
 | CH-03 | 10, 13 | `card_game/engine.py`, `ports.py`, `cli.py` | `tests/integration/app/` |
 | CH-04, INT-01 | 10 | `engine.py` | `tests/integration/app/test_engine.py` |
 | CH-05, INT-02 | 10 | `engine.py` | `tests/integration/app/test_engine.py` |

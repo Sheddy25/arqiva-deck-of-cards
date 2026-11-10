@@ -230,3 +230,56 @@ I agree with, then re-run ruff, mypy and pytest before committing.
 > will be applied in step 7: `DeckOfCardsClient` records the cards it has
 > drawn and the pile each one is in, and `add_to_pile` rejects any other card
 > before sending a request (DEC-06).
+
+## Prompt 0006 — Write the live API smoke test
+
+```text
+Role
+Act as a senior Python software engineer writing tests for an SDK.
+
+Context
+src/deck_of_cards_sdk/ is a client for https://deckofcardsapi.com/. Its unit
+and integration tests run over httpx.MockTransport, so they never prove that
+the live API still behaves as recorded. docs/requirements.md lists the
+observed behaviour the SDK relies on (OBS-01 to OBS-05): card value and suit
+names, Joker codes, counts sent as numbers or strings, the form of errors,
+and pile responses. It also records why DeckOfCardsClient guards
+add_to_pile (DEC-06): the API accepts adding a card that was never drawn,
+and silently moves a card that is already in another pile. pyproject.toml
+already defines a smoke marker that is excluded by default.
+
+Task
+1. Write tests/smoke/test_live_api.py for step 8 of
+   docs/implementation-plan.md, marked smoke and skipped unless the
+   environment variable DECK_API_SMOKE=1 is set.
+2. Re-check each observation through the public client: a full shuffled
+   pack, a deck with Jokers, a drawn card added to a pile then listed, drawn
+   back and returned, an unknown pile, and the errors for an unknown deck, a
+   pile over-draw and a deck over-draw.
+3. Check, through HttpTransport without the client's guard, that the API
+   still accepts adding a card that was not drawn, and moves a card already
+   in another pile, so the test fails if the guard stops being needed.
+4. Run the tests against the live API and report anything that differs from
+   docs/requirements.md.
+
+Constraints
+- Keep live calls few: each test creates one small deck of its own.
+- Do not depend on the order of a shuffled deck; use the card actually drawn.
+- Do not change SDK code; if the API differs from the requirements, report
+  it so I can decide what to change.
+- The default pytest run must still make no network calls.
+
+Output
+The test file, the result of a live run, and any observations that need
+updating in docs/requirements.md.
+
+Verification
+I will run pytest to confirm the smoke tests are deselected, then run
+DECK_API_SMOKE=1 pytest -m smoke several times to confirm they pass
+reliably.
+```
+
+> **Outcome (2026-11-10):** the live run found that adding a card that was
+> never drawn reports success but leaves the card in the deck, creating an
+> empty pile. OBS-05 has a change note for this, and the guard (DEC-06)
+> stays, because a caller would otherwise believe the card had been placed.

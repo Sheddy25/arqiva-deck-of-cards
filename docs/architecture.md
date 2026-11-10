@@ -55,8 +55,8 @@ The client is synchronous because the game performs one operation at a time and
 has no concurrent workload. An asynchronous interface would increase concepts
 and testing cost without improving this use case.
 
-The API accepts adding a card that was never drawn, and silently moves a card
-that is already in another pile (OBS-05). The client therefore records the
+The API reports success for a card that was never drawn without placing it,
+and silently moves a card that is already in another pile (OBS-05). The client therefore records the
 cards it has drawn from each deck and the pile each one is in, and
 `add_to_pile` rejects any other card with `InvalidArgumentError` before
 sending a request (DEC-06). Deck draws, pile draws, returns and full
@@ -377,6 +377,30 @@ service:
 
 An opt-in smoke test uses the real service sparingly. It is excluded from
 routine CI and never supplies the only evidence for a rule.
+
+### Why the smoke test is opt-in
+
+The smoke test (`tests/smoke/test_live_api.py`) re-checks that the live API
+still behaves as recorded in OBS-01 to OBS-05. It is excluded from the default
+`pytest` run because:
+
+- **Results must be repeatable.** A live call can fail because of the
+  network, a slow or unavailable service, or a timeout, none of which is a
+  fault in this code. Failures like that would teach readers to ignore a red
+  test run.
+- **The default run must be fast and offline.** The other tests take under a
+  second and need no internet connection, so they can run on every change.
+- **The API is a free public service with no key.** Calling it on every test
+  run and pull request would add needless load and risk rate limiting.
+- **The other tests already prove the behaviour.** The SDK integration tests
+  check every route, parameter, parse and error over `httpx.MockTransport`.
+  The smoke test only shows the real service still matches those recorded
+  responses.
+
+Two switches keep it from running by accident: `pyproject.toml` deselects the
+`smoke` marker, and the tests also skip unless `DECK_API_SMOKE=1` is set. Run
+it with `DECK_API_SMOKE=1 pytest -m smoke` after changing SDK code that calls
+the API, and before submission.
 
 ## Security and privacy boundaries
 

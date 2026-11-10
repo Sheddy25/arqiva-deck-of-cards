@@ -438,6 +438,30 @@ and argument errors.
 
 Run it by hand with `DECK_API_SMOKE=1 pytest -m smoke` and note the result.
 
+> **Change (2026-11-10):** the smoke test covers OBS-01 to OBS-05 and the
+> reason for DEC-06, in five tests that each use a small deck of their own:
+>
+> - a shuffled pack has 52 different cards, with 4 Kings and the observed
+>   value and suit names (OBS-01);
+> - an unshuffled deck with Jokers has 54 cards, including `X1` (BLACK) and
+>   `X2` (RED) (OBS-02);
+> - a drawn card is added to a pile, listed, drawn back and returned, and
+>   an unknown pile lists no cards (OBS-03, OBS-05);
+> - an unknown deck and a pile over-draw give HTTP 404, and a deck over-draw
+>   gives `success: false` (OBS-04, OBS-05);
+> - through `HttpTransport` without the client, the API still accepts adding
+>   a card that was not drawn, and moves a card already in another pile
+>   (DEC-06).
+>
+> `tests/smoke/__init__.py` was added, like the other test folders.
+>
+> **Reason:** the SDK now relies on OBS-04 and OBS-05 as well, and the
+> guard in step 7 is only needed while the API accepts those adds.
+
+> **Note (2026-11-10):** the live run showed that adding a card that was
+> never drawn reports success but does not move the card: it stays in the
+> deck, and the pile is created empty. OBS-05 has a change note for this.
+
 **Commit:** `test(sdk): add opt-in live API smoke test`
 
 ---
