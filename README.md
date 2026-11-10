@@ -162,8 +162,10 @@ The SDK never retries. The API uses `GET` even for calls that change state,
 so a retry could draw or move a card twice.
 
 The game stops at the first failed call and says whether the API refused it
-(`rejected`) or whether it may have taken effect (`unknown`, such as after a
-timeout). It then shows the piles the API confirmed before the failure:
+without a known state change (`rejected`), completed only part of it
+(`partial`, such as a deck over-draw), or may have taken effect (`unknown`,
+such as after a timeout). It then shows the piles the API confirmed before
+the failure:
 
 ```text
 error: game interrupted: add to pile had an unknown outcome: request timed out; not confirmed in a pile: 3S
@@ -187,9 +189,10 @@ and 130 when cancelled with Ctrl+C.
 ```bash
 ruff format --check .   # formatting
 ruff check .            # linting
-mypy src tests          # type checking
+mypy src tests scripts  # type checking
 pytest                  # tests (live API smoke tests excluded)
 pytest --cov            # tests with coverage, failing below 90%
+python scripts/check_constraints.py   # installed dependencies match the pins
 pip-audit -r constraints.txt --no-deps --disable-pip   # known vulnerabilities
 python -m build         # package build
 DECK_API_SMOKE=1 pytest -m smoke   # live API smoke tests
@@ -208,7 +211,10 @@ The smoke tests call the real API, so they are opt-in; see
 [CI](.github/workflows/ci.yml) runs every check except the smoke tests on
 Python 3.12 and 3.14 for each push and pull request to `main`. It installs
 the pinned versions in `constraints.txt`, its actions are pinned to commit
-hashes, and its token is read-only.
+hashes, and its token is read-only. It also installs the built wheel in a
+clean environment and checks both imports and the `card-game` entry point.
+A separate Python 3.14 job runs the tests with the latest runtime
+dependencies allowed by the package.
 
 ## Limitations
 

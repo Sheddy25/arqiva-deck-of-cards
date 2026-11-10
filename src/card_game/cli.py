@@ -51,7 +51,9 @@ def main(
 
     logger = logging.getLogger(_GAME_LOGGER)
     level = logger.level
+    propagate = logger.propagate
     logger.setLevel(logging.DEBUG)
+    logger.propagate = False
     for handler in handlers:
         logger.addHandler(handler)
     try:
@@ -61,6 +63,7 @@ def main(
             logger.removeHandler(handler)
             handler.close()
         logger.setLevel(level)
+        logger.propagate = propagate
 
 
 def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:

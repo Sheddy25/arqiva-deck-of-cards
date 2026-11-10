@@ -11,6 +11,7 @@ from deck_of_cards_sdk import (
     DrawResult,
     HttpTransport,
     InvalidArgumentError,
+    ResponseFormatError,
 )
 
 DECK_ID = "3p40paa87x90"
@@ -108,6 +109,24 @@ def test_create_unshuffled_deck_with_jokers() -> None:
     assert deck.remaining == 54
 
 
+@pytest.mark.parametrize(
+    ("kwargs", "body"),
+    [
+        ({}, deck_body(shuffled=False)),
+        ({"shuffled": False}, deck_body(shuffled=True)),
+    ],
+)
+def test_create_deck_requires_the_requested_shuffled_state(
+    kwargs: dict[str, object], body: dict[str, object]
+) -> None:
+    api = FakeApi(body)
+
+    with pytest.raises(ResponseFormatError, match="field 'shuffled'"):
+        make_client(api).create_deck(**kwargs)  # type: ignore[arg-type]
+
+    assert len(api.requests) == 1
+
+
 def test_draw_cards_parses_cards_including_a_joker() -> None:
     body: dict[str, object] = {
         "success": True,
@@ -172,6 +191,13 @@ def test_shuffle_only_the_remaining_cards() -> None:
     assert api.last_url == f"{BASE}deck/{DECK_ID}/shuffle/?remaining=true"
 
 
+def test_shuffle_deck_requires_a_shuffled_response() -> None:
+    api = FakeApi(deck_body(shuffled=False))
+
+    with pytest.raises(ResponseFormatError, match="field 'shuffled'"):
+        make_client(api).shuffle_deck(DECK_ID)
+
+
 @pytest.mark.parametrize(
     ("kwargs", "message"),
     [
@@ -181,6 +207,11 @@ def test_shuffle_only_the_remaining_cards() -> None:
         ({"cards": ["AS", "1S"]}, "invalid card codes"),
         ({"cards": "AS,2S"}, "must be a list"),
         ({"jokers_enabled": True}, "unshuffled"),
+        ({"shuffled": "false"}, "shuffled must be true or false"),
+        (
+            {"shuffled": False, "jokers_enabled": 1},
+            "jokers_enabled must be true or false",
+        ),
         ({"shuffled": False, "deck_count": 2}, "shuffled deck"),
         ({"shuffled": False, "cards": ["AS"]}, "shuffled deck"),
     ],
@@ -214,6 +245,18 @@ def test_invalid_shuffle_deck_id_sends_no_request() -> None:
 
     with pytest.raises(InvalidArgumentError, match="deck ID"):
         make_client(api).shuffle_deck("not/valid")
+
+    assert api.requests == []
+
+
+def test_invalid_shuffle_boolean_sends_no_request() -> None:
+    api = FakeApi(deck_body())
+
+    with pytest.raises(InvalidArgumentError, match="remaining_only"):
+        make_client(api).shuffle_deck(
+            DECK_ID,
+            remaining_only="false",  # type: ignore[arg-type]
+        )
 
     assert api.requests == []
 

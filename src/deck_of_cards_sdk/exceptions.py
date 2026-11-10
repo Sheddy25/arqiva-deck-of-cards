@@ -58,9 +58,15 @@ class IncompleteDrawError(ApiError):
     """A draw asked for more cards than remained (OBS-04).
 
     The API still draws the cards that were left. They are in ``result``, and
-    the client has recorded them, so they can be added to piles.
+    the client has recorded them, so they can be added to piles. ``body``
+    retains the API's complete JSON response.
     """
 
-    def __init__(self, message: str, result: "DrawResult") -> None:
-        super().__init__(message)
+    def __init__(
+        self,
+        message: str,
+        result: "DrawResult",
+        body: Mapping[str, object] | None = None,
+    ) -> None:
+        super().__init__(message, body=body)
         self.result = result

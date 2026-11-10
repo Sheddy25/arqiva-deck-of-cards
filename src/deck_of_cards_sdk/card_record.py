@@ -48,6 +48,12 @@ class CardRecord:
                     f"card {code} has not been drawn from deck {deck_id} by this client"
                 )
 
+    def pile_count(self, deck_id: str, pile_name: str) -> int:
+        """How many cards this record knows are in ``pile_name``."""
+        return sum(
+            pile == pile_name for pile in self._pile_of.get(deck_id, {}).values()
+        )
+
     def drawn(self, deck_id: str, cards: Iterable[Card]) -> None:
         self._held.setdefault(deck_id, set()).update(card.code for card in cards)
 

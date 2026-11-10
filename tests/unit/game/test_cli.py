@@ -3,6 +3,7 @@ CH-10, INT-05, DEC-02)."""
 
 import contextlib
 import inspect
+import io
 import json
 import logging
 import runpy
@@ -284,11 +285,28 @@ def test_logging_is_restored_after_a_game(
     capsys: pytest.CaptureFixture[str], tmp_path: Path, client_factory: Factory
 ) -> None:
     logger = logging.getLogger("card_game")
-    before = (list(logger.handlers), logger.level)
+    before = (list(logger.handlers), logger.level, logger.propagate)
 
     main(["--verbose", "--log-file", str(tmp_path / "a.jsonl")], client_factory)
 
-    assert (list(logger.handlers), logger.level) == before
+    assert (list(logger.handlers), logger.level, logger.propagate) == before
+
+
+def test_cli_transactions_do_not_propagate_to_the_root_logger(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    root = logging.getLogger()
+    root.addHandler(handler)
+    try:
+        code, _, _ = run(capsys)
+    finally:
+        root.removeHandler(handler)
+        handler.close()
+
+    assert code == 0
+    assert stream.getvalue() == ""
 
 
 def test_the_real_client_is_used_by_default() -> None:

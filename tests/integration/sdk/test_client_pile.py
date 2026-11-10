@@ -3,6 +3,7 @@
 add_to_pile (DEC-06)."""
 
 from collections.abc import Callable
+from threading import Event, Thread
 
 import httpx
 import pytest
@@ -18,6 +19,7 @@ from deck_of_cards_sdk import (
     PileDrawResult,
     PileListing,
     PileResult,
+    ResponseFormatError,
 )
 from deck_of_cards_sdk.validation import RANK_VALUES, SUIT_NAMES
 
@@ -79,6 +81,10 @@ def cards_body(*codes: str) -> dict[str, object]:
 
 PILES = {"piles": {"discard": {"remaining": 2}}}
 ADDED = {"remaining": 0, **PILES}
+
+
+def added(pile_name: str, count: int) -> dict[str, object]:
+    return {"remaining": 0, "piles": {pile_name: {"remaining": count}}}
 
 
 def test_add_to_pile() -> None:
@@ -253,7 +259,7 @@ def test_adding_a_card_that_was_not_drawn_sends_no_request() -> None:
 
 
 def test_adding_a_card_already_in_a_pile_sends_no_request() -> None:
-    api = FakeApi(cards_body("AS"), ADDED)
+    api = FakeApi(cards_body("AS"), added("discard_1", 1))
     client = make_client(api)
     client.draw_cards(DECK_ID)
     client.add_to_pile(DECK_ID, "discard_1", ["AS"])
@@ -290,6 +296,70 @@ def test_cards_drawn_by_another_client_cannot_be_added() -> None:
         make_client(api).add_to_pile(DECK_ID, "discard", ["AS"])
 
 
+def test_concurrent_adds_cannot_bypass_the_card_record() -> None:
+    first_add_started = Event()
+    release_first_add = Event()
+    second_thread_started = Event()
+    second_request_sent = Event()
+    requests: list[httpx.Request] = []
+
+    def api(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if request.url.path.endswith("/draw/"):
+            body = {"success": True, "deck_id": DECK_ID, **cards_body("AS")}
+            return httpx.Response(200, json=body)
+        add_number = sum(item.url.path.endswith("/add/") for item in requests)
+        if add_number == 1:
+            first_add_started.set()
+            assert release_first_add.wait(1)
+        else:
+            second_request_sent.set()
+        pile_name = request.url.path.split("/pile/")[1].split("/")[0]
+        body = {
+            "success": True,
+            "deck_id": DECK_ID,
+            "remaining": 51,
+            "piles": {pile_name: {"remaining": 1}},
+        }
+        return httpx.Response(200, json=body)
+
+    http_client = httpx.Client(transport=httpx.MockTransport(api))
+    client = DeckOfCardsClient(HttpTransport(client=http_client))
+    client.draw_cards(DECK_ID)
+    errors: list[BaseException] = []
+
+    def add(pile_name: str, started: Event | None = None) -> None:
+        if started is not None:
+            started.set()
+        try:
+            client.add_to_pile(DECK_ID, pile_name, ["AS"])
+        except BaseException as error:
+            errors.append(error)
+
+    first = Thread(target=add, args=("discard_1",))
+    second = Thread(target=add, args=("discard_2", second_thread_started))
+    first.start()
+    assert first_add_started.wait(1)
+    second.start()
+    assert second_thread_started.wait(1)
+    try:
+        assert not second_request_sent.wait(0.05)
+    finally:
+        release_first_add.set()
+    first.join(1)
+    second.join(1)
+    http_client.close()
+
+    assert not first.is_alive()
+    assert not second.is_alive()
+    assert (
+        len([request for request in requests if request.url.path.endswith("/add/")])
+        == 1
+    )
+    assert len(errors) == 1
+    assert isinstance(errors[0], InvalidArgumentError)
+
+
 def test_drawing_from_new_records_the_created_deck() -> None:
     api = FakeApi(cards_body("AS"), ADDED)
     client = make_client(api)
@@ -309,15 +379,29 @@ def test_a_failed_add_leaves_the_card_held() -> None:
     client.add_to_pile(DECK_ID, "discard", ["AS"])
 
 
+def test_an_add_must_confirm_the_target_pile_before_recording_it() -> None:
+    confirmed = {"remaining": 51, "piles": {"discard": {"remaining": 1}}}
+    api = FakeApi(cards_body("AS"), {"remaining": 51}, confirmed)
+    client = make_client(api)
+    client.draw_cards(DECK_ID)
+
+    with pytest.raises(ResponseFormatError, match="did not confirm"):
+        client.add_to_pile(DECK_ID, "discard", ["AS"])
+
+    client.add_to_pile(DECK_ID, "discard", ["AS"])
+    assert len(api.requests) == 3
+
+
 def test_an_over_draw_keeps_the_cards_the_api_drew() -> None:
+    body = {
+        "success": False,
+        "deck_id": DECK_ID,
+        **cards_body("AS"),
+        "error": "Not enough cards remaining to draw 2 additional",
+    }
     over_draw = httpx.Response(
         200,
-        json={
-            "success": False,
-            "deck_id": DECK_ID,
-            **cards_body("AS"),
-            "error": "Not enough cards remaining to draw 2 additional",
-        },
+        json=body,
     )
     api = FakeApi(over_draw, ADDED)
     client = make_client(api)
@@ -329,6 +413,7 @@ def test_an_over_draw_keeps_the_cards_the_api_drew() -> None:
     assert isinstance(error.value, ApiError)
     assert error.value.result.cards == (card("AS", "ACE", "SPADES"),)
     assert error.value.result.remaining == 0
+    assert error.value.body == body
 
 
 def test_a_failed_draw_without_cards_is_a_plain_api_error() -> None:
@@ -340,8 +425,30 @@ def test_a_failed_draw_without_cards_is_a_plain_api_error() -> None:
     assert not isinstance(error.value, IncompleteDrawError)
 
 
+def test_a_failed_draw_with_a_complete_draw_body_is_a_plain_api_error() -> None:
+    body = {
+        "success": False,
+        "deck_id": DECK_ID,
+        **cards_body("AS"),
+        "remaining": 50,
+        "error": "A different draw failure",
+    }
+    api = FakeApi(httpx.Response(200, json=body))
+
+    with pytest.raises(ApiError, match="different draw failure") as error:
+        make_client(api).draw_cards(DECK_ID)
+
+    assert not isinstance(error.value, IncompleteDrawError)
+    assert error.value.body == body
+
+
 def test_a_card_drawn_from_a_pile_can_be_added_to_another() -> None:
-    api = FakeApi(cards_body("AS"), ADDED, cards_body("AS"), ADDED)
+    api = FakeApi(
+        cards_body("AS"),
+        added("discard_1", 1),
+        cards_body("AS"),
+        added("discard_2", 1),
+    )
     client = make_client(api)
     client.draw_cards(DECK_ID)
     client.add_to_pile(DECK_ID, "discard_1", ["AS"])
@@ -376,7 +483,7 @@ def test_returning_drawn_cards_to_the_deck(
 
 
 def test_returning_drawn_cards_leaves_cards_in_piles() -> None:
-    api = FakeApi(cards_body("AS"), ADDED, {"remaining": 0})
+    api = FakeApi(cards_body("AS"), added("discard_1", 1), {"remaining": 0})
     client = make_client(api)
     client.draw_cards(DECK_ID)
     client.add_to_pile(DECK_ID, "discard_1", ["AS"])
@@ -397,7 +504,7 @@ def test_returning_drawn_cards_leaves_cards_in_piles() -> None:
 def test_returning_a_pile_to_the_deck(
     kwargs: dict[str, object], returned: set[str]
 ) -> None:
-    api = FakeApi(cards_body("AS", "2S"), ADDED)
+    api = FakeApi(cards_body("AS", "2S"), added("discard_1", 2))
     client = make_client(api)
     client.draw_cards(DECK_ID, 2)
     client.add_to_pile(DECK_ID, "discard_1", ["AS", "2S"])
@@ -415,7 +522,7 @@ def test_returning_a_pile_to_the_deck(
 )
 def test_a_full_reshuffle_returns_every_card(remaining_only: bool, reason: str) -> None:
     deck: dict[str, object] = {"shuffled": True, "remaining": 2}
-    api = FakeApi(cards_body("AS"), ADDED, deck)
+    api = FakeApi(cards_body("AS"), added("discard_1", 1), deck)
     client = make_client(api)
     client.draw_cards(DECK_ID)
     client.add_to_pile(DECK_ID, "discard_1", ["AS"])
